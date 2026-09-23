@@ -431,17 +431,37 @@ A documentação do GitHub diz:
 
 **Este é o risco mais traiçoeiro do projeto.** Depois que o núcleo estiver pronto, o repositório pode passar meses sem commit. No 61º dia o GitHub desativa o agendamento; o backup e a rotina anti-pausa morrem juntos e **em silêncio**; uma semana depois o Supabase pausa o projeto; e ninguém descobre até tentar abrir o dashboard.
 
-Três proteções, em camadas:
+### Vigia: dead man's switch no Healthchecks.io
 
-1. **Disparo externo pelo n8n.** O job expõe `workflow_dispatch`, e o n8n da empresa o aciona por agendamento diário. O n8n não depende de atividade no repositório. Basta um token de escopo mínimo, guardado no n8n.
-2. **Alerta de falha.** Falha de execução notifica por e-mail. Falha silenciosa não existe.
-3. **Vigia de frescor, executado pelo n8n — nunca pelo GitHub Actions.** Semanalmente o n8n confere a idade do arquivo mais recente na pasta de backup do Drive e alerta Bernardo se passar de 48 horas.
+**A proteção principal.** Ao terminar com sucesso, o job diário de backup faz um ping numa URL do Healthchecks.io (plano gratuito). Se o ping não chegar dentro do prazo configurado, Bernardo recebe alerta por e-mail.
 
-**A camada 3 mora fora do GitHub de propósito.** Um vigia implementado como workflow agendado teria exatamente o defeito que deveria detectar: no 61º dia o GitHub desativaria o vigia e o backup juntos, e o alerta jamais dispararia. Vigia sujeito à mesma falha do vigiado não é redundância, é ilusão de redundância.
+**Por que esta é a proteção que funciona:** ela inverte a pergunta. Em vez de detectar que algo falhou, detecta que o sucesso **não aconteceu**. Essa inversão é o que cobre o modo de falha mais perigoso — o job que simplesmente deixa de existir. Um job desativado não falha; ele não acontece, e nenhum alerta de falha jamais dispara.
 
-A camada 3 também é a única que pega o caso do job que **deixa de rodar**. As camadas 1 e 2 cobrem o job que roda e falha; um job desativado não falha, simplesmente não acontece, e alerta de falha nunca dispara.
+Uma única proteção cobre os três modos de falha:
 
-> **Incerteza registrada:** a documentação do GitHub não esclarece se um workflow desativado por inatividade ainda aceita `workflow_dispatch`, nem se um disparo por API conta como "atividade no repositório". Portanto a camada 1 **não** é tratada como garantia. A camada 3, que é externa e observa o resultado em vez do mecanismo, é a proteção em que confiamos. Se o alerta disparar, a ação humana é reativar o workflow no painel do GitHub — procedimento documentado no `runbook-backup.md`.
+| Falha | Como o ping reage |
+|---|---|
+| O dump quebra | Job não chega ao fim, ping não sai, alerta dispara |
+| A requisição anti-pausa não acontece | Mesma coisa: o ping é a última etapa do job |
+| O GitHub desativa o agendamento no 61º dia | O job não roda, ping não sai, alerta dispara |
+
+**O Healthchecks.io não compartilha nenhum destino de falha com o que vigia.** É a diferença decisiva em relação a um vigia hospedado no próprio GitHub Actions, que seria desativado junto com o vigiado no 61º dia. Vigia sujeito à mesma falha do vigiado não é redundância, é ilusão de redundância.
+
+**A URL de ping é segredo.** Vai para os Secrets do GitHub como `HEALTHCHECKS_PING_URL`, nunca para o repositório: quem a tiver consegue silenciar o alarme pingando no lugar do job.
+
+### Resposta ao alerta
+
+Procedimento no `runbook-backup.md`, na ordem:
+
+1. **Conferir se o workflow agendado foi desativado.** Na aba Actions do repositório, um workflow desativado por inatividade aparece marcado como tal. Reativar pelo próprio painel.
+2. **Conferir se o projeto Supabase pausou.** Projeto pausado aparece assim no painel do Supabase e é restaurado por lá. A restauração leva alguns minutos e não perde dados.
+3. **Rodar o backup manualmente** e confirmar que o ping chegou ao Healthchecks.io antes de considerar o incidente encerrado.
+
+### Reforço opcional, documentado e não implementado agora
+
+Um disparo externo diário pelo **cron-job.org** (gratuito), chamando `workflow_dispatch`, com token do GitHub de escopo mínimo: apenas este repositório, apenas permissão de *actions*.
+
+Fica documentado e fora do escopo do #1 por dois motivos. Primeiro, o dead man's switch já cobre os três modos de falha, e o reforço apenas encurtaria o tempo até a correção. Segundo — e mais relevante — **a documentação do GitHub não esclarece se um workflow desativado por inatividade ainda aceita `workflow_dispatch`**, nem se um disparo por API conta como "atividade no repositório". Um reforço cuja eficácia não se pode afirmar não deve ser tratado como garantia, e não vale gastar um token de acesso agora para obtê-lo.
 
 ### Segredos
 
@@ -452,6 +472,7 @@ SUPABASE_DB_URL              string de conexão do dump
 SUPABASE_SERVICE_ROLE_KEY    leitura dos arquivos e ping de atividade
 GDRIVE_SA_JSON               credencial da conta de serviço
 GDRIVE_FOLDER_ID             pasta de destino
+HEALTHCHECKS_PING_URL        dead man's switch — silencia o alarme se vazar
 VITE_SUPABASE_URL            build
 VITE_SUPABASE_ANON_KEY       build
 ```
@@ -466,7 +487,8 @@ un-provas-sociais/
     testes.yml       vitest + RLS no Supabase local (todo push)
     deploy.yml       build Vite + publica no Pages (main, se testes passam)
     migracoes.yml    aplica migrações em produção — MANUAL
-    backup.yml       cron diário + workflow_dispatch: dump, Drive, ping
+    backup.yml       cron diário + workflow_dispatch: dump, Drive,
+                     ping anti-pausa no Supabase, ping final no Healthchecks
   supabase/
     config.toml      configuração de Auth versionada
     migrations/      schema, RLS, storage — a fonte da verdade
@@ -501,7 +523,7 @@ un-provas-sociais/
 
 | Risco | Impacto | Mitigação |
 |---|---|---|
-| GitHub desativa workflows agendados após 60 dias sem atividade no repositório | Backup e anti-pausa morrem em silêncio; o projeto Supabase pausa uma semana depois | Disparo diário pelo n8n, alerta de falha, e vigia semanal de frescor **executado pelo n8n** — fora do GitHub, para não sofrer a falha que detecta |
+| GitHub desativa workflows agendados após 60 dias sem atividade no repositório | Backup e anti-pausa morrem em silêncio; o projeto Supabase pausa uma semana depois | **Dead man's switch no Healthchecks.io**: o alerta dispara pela *ausência* do ping, não pela falha — e o serviço não compartilha destino de falha com o que vigia. Resposta ao alerta no runbook |
 | Critério de inatividade do Supabase não documentado | Pausa apesar do backup diário | O job bate em duas portas: conexão de banco e API REST |
 | Política de RLS mal escrita | Dados de alunos expostos na internet | Suíte de RLS com varredura de catálogo e matriz de quatro papéis |
 | Tabela nova criada sem RLS | Mesma coisa, sem aviso | O teste varre o catálogo: tabela nova nasce reprovada |
@@ -520,8 +542,9 @@ Vão para `docs/runbook-backup.md` e `docs/runbook-equipe.md`.
 2. **Criar a pasta de backup no Google Drive** e compartilhá-la como Editor com o e-mail da conta de serviço. Sem isso o backup não funciona.
 3. **Criar o OAuth client no Google Cloud** e registrar o client secret no painel do Supabase, nunca no repositório.
 4. **Popular `membro_equipe`** com os quatro e-mails da equipe, por SQL, conforme o `runbook-equipe.md`.
-5. **Configurar dois fluxos no n8n:** o disparo diário do `backup.yml`, com token de escopo mínimo, e o vigia semanal que confere a idade do backup mais recente no Drive e alerta se passar de 48 horas.
+5. **Criar conta no Healthchecks.io** (plano gratuito), criar o check do backup diário com o prazo e o e-mail de alerta, e guardar a URL de ping no Secret `HEALTHCHECKS_PING_URL`. A URL nunca vai para o repositório.
 6. **Executar o ensaio de restauração** e registrar a data no runbook.
+7. **Provocar o alerta de propósito, uma vez.** Deixar o check expirar e confirmar que o e-mail chega. Vigia nunca disparado tem o mesmo valor de backup nunca restaurado.
 
 ### Runbook de equipe
 
