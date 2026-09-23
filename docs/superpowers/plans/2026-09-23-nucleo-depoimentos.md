@@ -283,7 +283,9 @@ Registre aqui o que encontrou: ____________________
 ### Task 4: Supabase local e a suíte de RLS que falha primeiro
 
 **Files:**
-- Create: `supabase/config.toml` (gerado), `supabase/migrations/0001_extensoes.sql`, `testes/rls/ajuda.js`, `testes/rls/catalogo.test.js`
+- Create: `supabase/config.toml` (gerado pelo `supabase init`), `testes/rls/ajuda.js`, `testes/rls/catalogo.test.js`
+
+> **Emenda pós-aprovação (2026-09-23).** A versão aprovada listava aqui um `supabase/migrations/0001_extensoes.sql` que **nenhum passo criava** — e que não é necessário: o `supabase init` já gera o que a CLI precisa, e o projeto não usa extensão fora do padrão. Não crie esse arquivo. As migrações começam em `0002_enums.sql`, na Task 5.
 
 **Interfaces:**
 - Consumes: Supabase CLI da Task 3
@@ -400,6 +402,8 @@ git commit -m "test: suite de RLS com varredura de catalogo"
 
 ### Task 5: Enums e tabelas de referência
 
+> **Emenda pós-aprovação (2026-09-23).** As Tasks 5 e 6 são executadas como **uma unidade, com um único commit ao final**, feito só com a suíte verde. O passo que mostra o teste de catálogo reprovando continua obrigatório — é o que prova que a varredura funciona — mas a reprovação aparece no relatório, não no histórico do Git. Commit vermelho deixaria um ponto quebrado para o `git bisect` encontrar depois.
+
 **Files:**
 - Create: `supabase/migrations/0002_enums.sql`, `supabase/migrations/0003_referencia.sql`
 - Test: `testes/rls/catalogo.test.js` (já existe, passa a ter o que reprovar)
@@ -474,12 +478,11 @@ Expected: **FAIL**, listando as cinco tabelas novas sem RLS.
 
 Esse é o ponto do teste. Ele acaba de pegar exatamente o erro que existe para pegar, na primeira oportunidade que teve.
 
-- [ ] **Step 4: Commit**
+**Copie a saída da falha para o relatório.** Ela é a evidência de que a varredura funciona, e é o único registro que restará dela.
 
-```bash
-git add supabase/migrations
-git commit -m "feat(db): enums e tabelas de referencia (RLS pendente)"
-```
+- [ ] **Step 4: NÃO commitar ainda**
+
+Pela emenda no topo desta tarefa, o commit vem ao fim da Task 6, com a suíte verde. Siga direto para a Task 6.
 
 ---
 
@@ -624,16 +627,46 @@ end $$;
 
 Uma condição, um lugar para errar, um lugar para corrigir.
 
-- [ ] **Step 5: Aplicar e ver tudo passar**
+- [ ] **Step 5: Blindar a varredura de catálogo contra o falso "limpo"**
+
+> **Emenda pós-aprovação (2026-09-23).** Os dois testes de catálogo afirmam que **nenhuma** tabela está desprotegida. Uma consulta apontada para o schema errado — ou com um filtro digitado errado — também devolve nada, e passaria verde enquanto o banco inteiro estivesse exposto. Um teste que não consegue falhar não é teste.
+
+Acrescente em `testes/rls/catalogo.test.js`:
+
+```js
+it('a varredura enxerga as tabelas conhecidas', async () => {
+  const cliente = await conectar()
+  const { rows } = await cliente.query(`
+    select c.relname as tabela
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind = 'r'
+    order by 1
+  `)
+  await cliente.end()
+  const tabelas = rows.map((r) => r.tabela)
+
+  // Se este expect falhar, as duas assercoes acima estao passando por
+  // vazio — a varredura nao esta olhando onde deveria.
+  for (const esperada of ['instituicao', 'instituicao_apelido', 'prova',
+                          'curso', 'materia', 'membro_equipe']) {
+    expect(tabelas).toContain(esperada)
+  }
+})
+```
+
+Conforme as tabelas forem nascendo nas Tasks 7, 8 e 10, acrescente os nomes novos a esta lista.
+
+- [ ] **Step 6: Aplicar e ver tudo passar**
 
 Run: `npx supabase db reset && npx vitest run testes/rls`
-Expected: PASS em `catalogo.test.js` e em `acesso.test.js`.
+Expected: PASS nos três testes de `catalogo.test.js` e nos seis de `acesso.test.js`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit único das Tasks 5 e 6**
 
 ```bash
 git add -A
-git commit -m "feat(db): membro_equipe, eh_membro_equipe() e politicas de referencia"
+git commit -m "feat(db): enums, tabelas de referencia, membro_equipe e politicas de RLS"
 ```
 
 ---
