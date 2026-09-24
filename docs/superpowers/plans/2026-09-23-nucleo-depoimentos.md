@@ -3658,12 +3658,30 @@ git commit -m "feat: gravacao transacional do depoimento inteiro"
 
 > **Emenda pós-aprovação (2026-09-24).** É aqui, não na Task 19, que `enviarPrint` e `salvarDepoimento` se combinam numa troca de arquivo de verdade (o bucket `prints` não tem política de UPDATE — ver emenda da Task 19). Ao trocar o print de um depoimento já existente: guardar o `print_path` antigo; enviar o print novo com nome único (`` `${crypto.randomUUID()}.webp` ``, regra da emenda da Task 17) via `enviarPrint()`; chamar `salvarDepoimento()` com o `print_path` novo; só depois desse `salvarDepoimento()` ter sucesso, apagar o print antigo com `storage.from('prints').remove([antigo])`. Se `salvarDepoimento()` falhar, apagar o print **novo** que acabou de ser enviado (`remove([novo])`), não o antigo — o print que já estava salvo continua valendo. Step 5 (`Ficha.vue`) abaixo foi reescrito para descrever essa sequência.
 
+> **Segunda emenda (revisão conjunta Tasks 15/16/18 + M3-G, 2026-09-24) — aplicada nos Steps
+> 2, 3 e 5 abaixo.** Em caso de divergência com a emenda acima, valem os Steps:
+> - Combobox: `combina()`/`ordenarPorRelevancia()` (Task 15) olham `nome_canonico` e `apelidos`,
+>   mas prova e curso têm só `nome`. Adaptador `comoOpcao(item) → { id, nome_canonico: item.nome,
+>   apelidos: [] }` em `src/lib/instituicoes.js`, com teste, aplicado antes de buscar; instituições
+>   entram sem adaptar, filtradas por `ativo`.
+> - Criar na hora: prova e curso por `criarSimples('prova' | 'curso', nome)`; instituição pelo
+>   caminho próprio, `criarInstituicao(nome_canonico)` (Task 17) — `criarSimples` gravaria na
+>   coluna `nome`, que `instituicao` não tem.
+> - `CampoPrint.receber` com `try/catch`, mostrando `erro.message` (ex.: Safari sem WebP).
+> - `Ficha.vue` valida (`validarDepoimento`) **antes** de enviar o print — ficha inválida não sobe
+>   nada para o bucket; se a gravação falhar, o print **novo** é removido também em depoimento
+>   novo (não só na troca).
+> - Campos numéricos da ficha (`valor_original`, `valor_maximo`) como
+>   `<input type="number" step="0.01">` e `ano` como `<input type="number" step="1">`: o navegador
+>   normaliza o separador decimal ("18,5" digitado vira 18.5) em vez de mandar "18,5", que a
+>   conversão da validação leria como inválido.
+
 **Files:**
 - Create: `src/telas/Ficha.vue`, `src/componentes/CamposDepoimento.vue`, `src/componentes/ListaParticipacoes.vue`, `src/componentes/CampoPrint.vue`, `src/componentes/SeletorAluno.vue`, `src/dados/alunos.js`
-- Modify: `src/App.vue`
+- Modify: `src/App.vue`, `src/lib/instituicoes.js` e `testes/lib/instituicoes.test.js` (`comoOpcao`)
 
 **Interfaces:**
-- Consumes: `salvarDepoimento`, `carregarDepoimento`, `enviarPrint` (Task 19); `comprimir` (Task 16); `LIMITE_AVISO_RESUMO` (Task 18)
+- Consumes: `salvarDepoimento`, `carregarDepoimento`, `enviarPrint`, `removerPrint` (Task 19); `listarInstituicoes`, `listarSimples`, `criarSimples`, `criarInstituicao` (Task 17); `combina`, `ordenarPorRelevancia` (Task 15); `comprimir` (Task 16); `validarDepoimento`, `LIMITE_AVISO_RESUMO` (Task 18)
 - Produces: rota `#/ficha` e `#/ficha/:id`
 
 - [ ] **Step 1: `CamposDepoimento.vue` — cabeçalho da ficha**
@@ -3722,7 +3740,49 @@ function aoEscolherProva(participacao, prova) {
 }
 ```
 
-Instituição, prova e curso usam um combobox que busca com `combina()` da Task 15 e oferece **criar na hora** quando nada bate, chamando `criarSimples`.
+Instituição, prova e curso usam um combobox que busca com `combina()`/`ordenarPorRelevancia()` da Task 15 e oferece **criar na hora** quando nada bate.
+
+`combina()` e `ordenarPorRelevancia()` leem `nome_canonico` e `apelidos`; prova e curso têm só `nome`. Primeiro, em TDD, o adaptador puro em `src/lib/instituicoes.js`:
+
+```js
+// testes/lib/instituicoes.test.js
+it('comoOpcao adapta prova/curso para a busca de instituicao', () => {
+  expect(comoOpcao({ id: 3, nome: 'Fuvest' }))
+    .toEqual({ id: 3, nome_canonico: 'Fuvest', apelidos: [] })
+  expect(combina(comoOpcao({ id: 3, nome: 'Fuvest' }), 'fuv')).toBe(true)
+})
+```
+
+```js
+// src/lib/instituicoes.js
+export function comoOpcao(item) {
+  return { id: item.id, nome_canonico: item.nome, apelidos: [] }
+}
+```
+
+No componente:
+
+```js
+const opcoesProva = computed(() => provas.value.map(comoOpcao))
+const opcoesCurso = computed(() => cursos.value.map(comoOpcao))
+// Instituicao ja tem nome_canonico/apelidos; inativa nao e oferecida.
+const opcoesInstituicao = computed(() => instituicoes.value.filter((i) => i.ativo))
+
+function sugestoes(opcoes, termo) {
+  return ordenarPorRelevancia(opcoes.filter((o) => combina(o, termo)), termo)
+}
+```
+
+Criar na hora: prova e curso com `criarSimples('prova' | 'curso', termo)`; instituição com `criarInstituicao(termo)` (Task 17), nunca `criarSimples('instituicao', ...)` — a coluna é `nome_canonico`, não `nome`.
+
+Campos numéricos com o tipo certo, para o navegador normalizar o decimal ("18,5" digitado vira 18.5; `v-model` em `type="number"` já entrega número, ou `''` quando vazio — `prepararFicha` converte o branco em `null`):
+
+```vue
+<input v-model="participacao.ano" type="number" step="1" min="1990" max="2100" />
+<input v-model="nota.valor_original" type="number" step="0.01" min="0" />
+<input v-if="nota.escala === 'PONTOS'" v-model="nota.valor_maximo"
+       type="number" step="0.01" min="0" />
+```
 
 - [ ] **Step 3: `CampoPrint.vue` — colar, arrastar ou escolher**
 
@@ -3736,16 +3796,24 @@ import { comprimir } from '../lib/imagem.js'
 const emit = defineEmits(['arquivo'])
 const previa = ref(null)
 const tamanhos = ref(null)
+const erro = ref('')
 
+// comprimir() recusa navegador sem WebP (Safari) e imagem que nao decodifica:
+// vira mensagem na tela, nao excecao solta no console.
 async function receber(arquivo) {
   if (!arquivo?.type?.startsWith('image/')) return
-  const comprimido = await comprimir(arquivo)
-  tamanhos.value = {
-    antes: Math.round(arquivo.size / 1024),
-    depois: Math.round(comprimido.size / 1024),
+  erro.value = ''
+  try {
+    const comprimido = await comprimir(arquivo)
+    tamanhos.value = {
+      antes: Math.round(arquivo.size / 1024),
+      depois: Math.round(comprimido.size / 1024),
+    }
+    previa.value = URL.createObjectURL(comprimido)
+    emit('arquivo', comprimido)
+  } catch (e) {
+    erro.value = e.message
   }
-  previa.value = URL.createObjectURL(comprimido)
-  emit('arquivo', comprimido)
 }
 
 function aoColar(evento) {
@@ -3763,6 +3831,7 @@ onUnmounted(() => window.removeEventListener('paste', aoColar))
     <input type="file" accept="image/*" @change="receber($event.target.files[0])" />
     <img v-if="previa" :src="previa" alt="Prévia do print" />
     <small v-if="tamanhos">{{ tamanhos.antes }} KB → {{ tamanhos.depois }} KB</small>
+    <p v-if="erro" role="alert">{{ erro }}</p>
   </div>
 </template>
 ```
@@ -3775,7 +3844,31 @@ A sugestão **nunca liga sozinha.** Ela mostra "parece ser Fulano — ligar?" e 
 
 - [ ] **Step 5: `Ficha.vue` — montar tudo e salvar**
 
-Junta os componentes, chama `validarDepoimento` antes de gravar, exibe os erros numa lista e só então chama `salvarDepoimento`. Quando há print novo (colado/arrastado/escolhido em `CampoPrint.vue`) substituindo um print antigo (edição de um depoimento já existente): guardar o `print_path` antigo; enviar o novo com nome único (`` `${crypto.randomUUID()}.webp` ``, ver emenda no cabeçalho desta tarefa) via `enviarPrint()`; chamar `salvarDepoimento()` com o `print_path` novo; só depois desse `salvarDepoimento()` confirmar, apagar o print antigo com `storage.from('prints').remove([antigo])`. Se `salvarDepoimento()` falhar, apagar o print **novo** (`remove([novo])`), não o antigo.
+Junta os componentes e salva nesta ordem: **validar primeiro** (`validarDepoimento`; com erro, mostra a lista e para — nada sobe para o bucket); se há print novo (colado/arrastado/escolhido em `CampoPrint.vue`), enviar com nome único (`` `${crypto.randomUUID()}.webp` ``, ver emenda no cabeçalho desta tarefa) via `enviarPrint()`; chamar `salvarDepoimento()` com o `print_path` novo; só depois de salvar, apagar o print antigo (se havia). Se `salvarDepoimento()` falhar, apagar o print **novo** — em depoimento novo também, não só na troca —, nunca o antigo.
+
+```js
+async function salvar() {
+  erros.value = validarDepoimento(ficha)
+  if (erros.value.length) return
+  const antigo = ficha.print_path || null
+  let novo = null
+  let id
+  try {
+    if (printNovo.value) {
+      novo = await enviarPrint(printNovo.value, `${crypto.randomUUID()}.webp`)
+    }
+    id = await salvarDepoimento({ ...ficha, print_path: novo ?? antigo })
+  } catch (e) {
+    if (novo) await removerPrint(novo).catch(() => {})
+    erros.value = [e.message]
+    return
+  }
+  if (novo && antigo) await removerPrint(antigo).catch(() => {})
+  ficha.print_path = novo ?? antigo
+  printNovo.value = null
+  location.hash = `#/ficha/${id}`
+}
+```
 
 - [ ] **Step 6: Verificar à mão**
 
