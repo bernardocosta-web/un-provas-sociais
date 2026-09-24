@@ -33,4 +33,24 @@ describe('catalogo', () => {
     await cliente.end()
     expect(rows.map((r) => r.tabela)).toEqual([])
   })
+
+  it('a varredura enxerga as tabelas conhecidas', async () => {
+    const cliente = await conectar()
+    const { rows } = await cliente.query(`
+      select c.relname as tabela
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'r'
+      order by 1
+    `)
+    await cliente.end()
+    const tabelas = rows.map((r) => r.tabela)
+
+    // Se este expect falhar, as duas assercoes acima estao passando por
+    // vazio — a varredura nao esta olhando onde deveria.
+    for (const esperada of ['instituicao', 'instituicao_apelido', 'prova',
+                            'curso', 'materia', 'membro_equipe']) {
+      expect(tabelas).toContain(esperada)
+    }
+  })
 })
