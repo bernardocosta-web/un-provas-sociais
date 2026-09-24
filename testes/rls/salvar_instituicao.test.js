@@ -197,4 +197,23 @@ describe('salvar_instituicao', () => {
       expect(linha.rows[0].nome_canonico).toBe(`Via API ${sufixo}`)
     })
   })
+
+  // Revisao do Marco 3, item 5: quem nao esta em membro_equipe nao pode
+  // salvar. Causa real observada (probe manual contra o banco local): o
+  // insert em instituicao viola a WITH CHECK da RLS e o Postgres levanta
+  // 42501 diretamente — diferente do "nao existe" de mesclar_instituicoes
+  // (ali a checagem inicial e um SELECT, que a RLS so filtra em silencio).
+  it('estranho (fora da equipe) nao salva, e nao cria nada', async () => {
+    const sufixo = 'MARCADORSALVAR7'
+    await expect(comoUsuario('estranho@exemplo.test', (c) =>
+      c.query('select public.salvar_instituicao($1::jsonb)', [
+        JSON.stringify({ nome_canonico: `Estranho ${sufixo}` }),
+      ]))).rejects.toMatchObject({ code: '42501' })
+
+    const c = await conectar()
+    const linhas = await c.query(
+      'select count(*)::int as n from instituicao where nome_canonico = $1', [`Estranho ${sufixo}`])
+    expect(linhas.rows[0].n).toBe(0)
+    await c.end()
+  })
 })
