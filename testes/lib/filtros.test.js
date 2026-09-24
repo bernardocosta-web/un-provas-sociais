@@ -364,6 +364,32 @@ describe('montarFiltros: coercao central de string vinda de formulario', () => {
   })
 })
 
+// Achado durante o item 3 do brief (teste de contrato lib->SQL em
+// testes/rls/busca_multicondicao.test.js): materia_id/minimo vindos do
+// Postgres via `pg` chegam como STRING (bigint nao vira number sozinho no
+// driver), nao como number. filtrosParaUrl checava a condicao SEM coagir
+// primeiro — uma condicao valida com materia_id string era descartada em
+// silencio, e a URL saia sem o parametro "notas".
+describe('filtrosParaUrl: coage materia_id/minimo (string) antes de validar', () => {
+  it('materia_id e minimo em string ainda geram o parametro notas', () => {
+    const estado = {
+      ...ESTADO_VAZIO,
+      notas: [{ materia_id: '1', minimo: '100', familia: 'PERCENTUAL', operador: '=' }],
+    }
+    const params = new URLSearchParams(filtrosParaUrl(estado))
+    expect(params.get('notas')).toBe('1:100:PERCENTUAL:=')
+  })
+
+  it('ida e volta com materia_id/minimo em string preserva a condicao', () => {
+    const estado = {
+      ...ESTADO_VAZIO,
+      notas: [{ materia_id: '1', minimo: '100', familia: 'PERCENTUAL', operador: '=' }],
+    }
+    expect(urlParaFiltros(filtrosParaUrl(estado)).notas)
+      .toEqual([{ materia_id: 1, minimo: 100, familia: 'PERCENTUAL', operador: '=' }])
+  })
+})
+
 // --- Item 2 do brief: ESTADO_VAZIO nao pode compartilhar arrays entre
 // copias, e a UI precisa de uma copia nova e mutavel para limpar filtros.
 

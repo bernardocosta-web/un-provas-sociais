@@ -144,8 +144,11 @@ export function filtrosParaUrl(estado) {
     if (lista.length) params.set(campo, lista.join(','))
   }
 
-  // Mesma guarda de montarFiltros: condicao invalida nao vira URL.
-  const notasValidas = (estado.notas ?? []).filter(condicaoValida)
+  // Mesma coercao/guarda de montarFiltros: materia_id/minimo passam pela
+  // conversao central antes de validar (ex.: bigint do Postgres chega como
+  // string '1' no cliente pg, nao como number), senao uma condicao valida
+  // seria descartada aqui e a URL sairia sem "notas" por engano.
+  const notasValidas = (estado.notas ?? []).map(coagirCondicao).filter(condicaoValida)
   if (notasValidas.length) {
     params.set(
       'notas',
