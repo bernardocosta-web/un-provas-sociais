@@ -100,8 +100,15 @@ begin
 
   delete from public.instituicao_apelido where instituicao_id = v_id;
 
-  select array_agg(valor) into v_apelidos
-    from jsonb_array_elements_text(coalesce(p_dados->'apelidos', '[]'::jsonb)) as valor;
+  -- distinct sobre o valor aparado (btrim): o payload pode repetir o mesmo
+  -- apelido (ex.: usuario clicou "adicionar" duas vezes, ou dois campos com
+  -- so espaco de diferenca) — isso nao pode virar 23505 contra si mesmo. A
+  -- colisao que a funcao deve recusar e com o apelido de OUTRA instituicao,
+  -- nao consigo mesma. Blanks (apos aparar) sao descartados, nao inserted
+  -- vazios (ja rejeitados por ck_apelido, mas sem gerar erro aqui).
+  select array_agg(distinct btrim(valor)) into v_apelidos
+    from jsonb_array_elements_text(coalesce(p_dados->'apelidos', '[]'::jsonb)) as valor
+    where btrim(valor) <> '';
 
   if v_apelidos is not null then
     insert into public.instituicao_apelido (instituicao_id, apelido)

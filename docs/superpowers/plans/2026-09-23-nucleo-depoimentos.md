@@ -2452,13 +2452,74 @@ git commit -m "feat(lib): compressao de imagem mirando o carrossel"
 > SQL e teste verificados contra o banco local (0002–0011) com a migração aplicada
 > temporariamente; nada persistiu.
 
+> **Quarta emenda (correção pós-implementação, 2026-09-24) — rodadas de correção 1 e 2.**
+> `src/` e a migração (`supabase/migrations/0012_mesclar.sql`) passam a valer sobre os
+> blocos de código dos Steps abaixo onde divergirem; esta emenda documenta o que mudou.
+>
+> `salvarInstituicao`/Step 4 ganhou uma função SQL: `public.salvar_instituicao(p_dados
+> jsonb) returns bigint`, acrescentada a `supabase/migrations/0012_mesclar.sql` (0012 ainda
+> não tinha ido para o hospedado; o arquivo continua com o mesmo nome para não renumerar o
+> plano). A função faz o insert-ou-update de `instituicao` (por `id`, quando presente;
+> insere quando ausente — `id` é `generated always`) e a substituição completa dos apelidos
+> (`delete` + `insert`) na MESMA transação da chamada. Isso fecha um defeito real: as três
+> chamadas separadas do client (`update instituicao` → `delete apelidos` → `insert
+> apelidos`) deixavam uma janela em que um apelido colidindo com o de outra instituição
+> (`instituicao_apelido.apelido` é único globalmente) falhava DEPOIS de `logo_path` já ter
+> sido trocado; o formulário então apagava o arquivo novo (que ninguém mais referenciava) e
+> a instituição ficava com `logo_path` já trocado mas sem os apelidos pretendidos, quando a
+> operação toda deveria ter sido rejeitada. `salvarInstituicao` (`src/dados/referencia.js`)
+> passa a chamar só essa RPC; a ordem de upload/gravação/remoção de logo em
+> `FormInstituicao.vue` não muda (continua enviar novo → RPC → remover antigo; falha na RPC
+> remove o novo), e agora é segura porque a RPC ou faz tudo ou não faz nada. `security
+> invoker` (padrão), `set search_path = ''`, tudo qualificado por `public.`, termina com
+> `revoke all on function public.salvar_instituicao(jsonb) from public, anon, service_role;`
+> + `grant execute on function public.salvar_instituicao(jsonb) to authenticated;` —
+> acrescentado a `FUNCOES_DO_APP` em `testes/rls/privilegios.test.js`, em ordem alfabética.
+> A função também deduplica os apelidos recebidos (normalizados/aparados, ignorando vazios)
+> antes de inserir: `['D', 'D']` não pode levantar `23505` só porque o mesmo apelido foi
+> mandado duas vezes no mesmo payload — a colisão que a função deve recusar é com o apelido
+> de OUTRA instituição, não consigo mesma. Teste novo, `testes/rls/salvar_instituicao.test.js`:
+> insert, update com substituição de apelidos, colisão de apelido com outra instituição
+> (nada muda — nem `logo_path` nem os apelidos antigos), apelidos duplicados no mesmo payload
+> (não levanta erro) e uma chamada via `comoUsuario(MEMBRO)`.
+>
+> `referencia.js` ganhou `criarProva({ nome, instituicao_id })` (`instituicao_id` aceita
+> `null`, o caso do ENEM) e `listarProvas()` (junta com `instituicao` para mostrar o nome da
+> instituição de cada prova — `listarSimples` não serve para a aba de Provas porque só
+> devolve `id, nome`). A aba de Provas (Step 5) ganhou o seletor de instituição ativa (com
+> opção "Nenhuma") que a prosa original já pedia, num componente próprio,
+> `src/componentes/ListaProvas.vue` (select de instituições ativas + "Nenhuma", listando a
+> instituição de cada prova), em vez do `ListaSimples` genérico. `ListaSimples.vue` (também
+> novo, não citado no `Files:` original) passa a servir só Cursos e Matérias — as duas abas
+> que realmente só têm nome.
+>
+> `Cadastros.vue`: `<FormInstituicao>` ganhou `:key="instituicaoEditando?.id ?? 'nova'"` —
+> sem isso, trocar de "Editar A" para "Nova" ou para "Editar B" reaproveitava a instância e
+> o estado interno do formulário (campos, apelidos, arquivo escolhido) vazava de uma edição
+> para a outra.
+>
+> Erros de violação de unicidade (Postgres `23505`, ex.: nome ou apelido já cadastrado em
+> outra instituição) agora viram uma mensagem em pt-BR ("Já existe um cadastro com esse nome
+> ou apelido.") em vez do texto cru do Postgres, via um helper único e puro —
+> `src/lib/erros.js` (`mensagemDeErro`, sem import de Vue nem de `supabase-js`) — usado por
+> todos os componentes desta tela.
+>
+> Lista de arquivos (`Files:` abaixo) ganha, das duas rodadas de correção:
+> `src/componentes/ListaProvas.vue`, `src/componentes/ListaSimples.vue`, `src/lib/erros.js`,
+> `testes/rls/salvar_instituicao.test.js`, `testes/lib/erros.test.js` (criados); e modifica
+> `src/dados/referencia.js`, `src/componentes/FormInstituicao.vue`,
+> `src/componentes/ListaInstituicoes.vue`, `src/telas/Cadastros.vue`,
+> `supabase/migrations/0012_mesclar.sql` e `testes/rls/privilegios.test.js` de novo (além do
+> já listado abaixo).
+
 **Files:**
 - Create: `src/dados/referencia.js`, `src/telas/Cadastros.vue`, `src/componentes/ListaInstituicoes.vue`, `src/componentes/FormInstituicao.vue`, `supabase/migrations/0012_mesclar.sql`, `testes/rls/mesclar.test.js`
 - Modify: `src/App.vue`, `testes/rls/privilegios.test.js` (acrescentar `'mesclar_instituicoes(p_vencedor bigint, p_perdedor bigint)'` a `FUNCOES_DO_APP`, em ordem alfabética)
+- Fix rounds 1–2 (quarta emenda): cria `src/lib/erros.js`, `src/componentes/ListaProvas.vue`, `src/componentes/ListaSimples.vue`, `testes/rls/salvar_instituicao.test.js`, `testes/lib/erros.test.js`; acrescenta `salvar_instituicao` a `supabase/migrations/0012_mesclar.sql` e a `FUNCOES_DO_APP`; modifica `src/dados/referencia.js`, `src/componentes/FormInstituicao.vue`, `src/componentes/ListaInstituicoes.vue`, `src/telas/Cadastros.vue`.
 
 **Interfaces:**
 - Consumes: `src/lib/instituicoes.js` (Task 15), `src/lib/imagem.js` (Task 16)
-- Produces: `listarInstituicoes()`, `salvarInstituicao(dados)`, `mesclarInstituicoes(idVencedor, idPerdedor)`, `enviarLogo(arquivo, nomeArquivo) → caminho`, `removerLogo(caminho)`, `urlDaLogo(caminho) → url`, `listarSimples(tabela)`, `criarSimples(tabela, nome)`, `criarInstituicao(nome_canonico)`
+- Produces: `listarInstituicoes()`, `salvarInstituicao(dados)`, `mesclarInstituicoes(idVencedor, idPerdedor)`, `enviarLogo(arquivo, nomeArquivo) → caminho`, `removerLogo(caminho)`, `urlDaLogo(caminho) → url`, `listarSimples(tabela)`, `criarSimples(tabela, nome)`, `criarInstituicao(nome_canonico)`, `listarProvas()`, `criarProva({ nome, instituicao_id })` (fix rounds 1–2)
 
 - [ ] **Step 1: Escrever o teste da mesclagem**
 

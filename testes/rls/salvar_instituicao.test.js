@@ -45,6 +45,33 @@ describe('salvar_instituicao', () => {
     }
   })
 
+  // O payload pode repetir o mesmo apelido (clique duplo em "adicionar", ou
+  // duas entradas diferindo so em espaco) — isso nao pode virar 23505 contra
+  // si mesmo. A colisao que a funcao recusa e com o apelido de OUTRA
+  // instituicao (teste de colisao abaixo), nao consigo mesma.
+  it('deduplica apelidos repetidos (inclusive com espacos) no mesmo payload, sem erro', async () => {
+    const c = await conectar()
+    try {
+      await c.query('begin')
+      const sufixo = 'MARCADORSALVAR5'
+      const resultado = await c.query('select public.salvar_instituicao($1::jsonb) as id', [
+        JSON.stringify({
+          nome_canonico: `Duplicada ${sufixo}`,
+          apelidos: [`Dupe ${sufixo}`, `Dupe ${sufixo}`, `  Dupe ${sufixo}  `, `Unica ${sufixo}`],
+        }),
+      ])
+      const id = resultado.rows[0].id
+
+      const apelidos = await c.query(
+        'select apelido from instituicao_apelido where instituicao_id = $1 order by apelido', [id])
+      expect(apelidos.rows.map((r) => r.apelido)).toEqual(
+        [`Dupe ${sufixo}`, `Unica ${sufixo}`])
+    } finally {
+      await c.query('rollback').catch(() => {})
+      await c.end()
+    }
+  })
+
   it('atualiza uma instituicao existente e substitui os apelidos', async () => {
     const c = await conectar()
     try {

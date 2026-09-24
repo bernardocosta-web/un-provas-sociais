@@ -1,7 +1,7 @@
 <script setup>
-// Reaproveitado pelas abas de Provas, Cursos e Matérias em Cadastros.vue: as
-// três só têm nome, sem lógica própria (listarSimples/criarSimples cobrem
-// as duas). Evita repetir o mesmo formulário três vezes.
+// Reaproveitado pelas abas de Cursos e Matérias em Cadastros.vue: as duas só
+// têm nome, sem lógica própria (listarSimples/criarSimples cobrem as duas).
+// Provas tem instituição opcional e usa ListaProvas.vue, não este.
 import { ref, onMounted } from 'vue'
 import { mensagemDeErro } from '../lib/erros.js'
 import { listarSimples, criarSimples } from '../dados/referencia.js'
