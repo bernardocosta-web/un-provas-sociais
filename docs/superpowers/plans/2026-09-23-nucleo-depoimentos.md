@@ -2929,6 +2929,52 @@ com a lista de conflitos se já houver dados violando a regra.
 
 ---
 
+### Task 17c: Remover cadastros de referência sem uso
+
+> **Tarefa nova (pedido do Bernardo, 2026-09-24)**, registrada em
+> `.superpowers/sdd/2026-09-23-nucleo-depoimentos/progress.md` ("Requisito novo: remover cadastros
+> de referencia") e brief em `.superpowers/sdd/2026-09-23-nucleo-depoimentos/task-17c-brief.md`:
+> instituição, prova, curso e matéria cadastrados errado ou duplicados só podiam ser editados (ou,
+> no caso de instituição, mesclados) — nunca apagados.
+
+**Motivo:** instituição, prova, curso ou matéria **sem uso** podem ser removidos (a instituição
+leva junto os apelidos, `on delete cascade`, e a logo do Storage). **Em uso**, a remoção é
+recusada com mensagem em português dizendo onde está em uso — e, no caso de instituição,
+sugerindo a mesclagem. "Em uso": `resultado.instituicao_id` (`restrict`) e `prova.instituicao_id`
+(`set null` — conta como uso: apagar mudaria a prova em silêncio) para instituição;
+`participacao.prova_id` (`restrict`) para prova; `resultado.curso_id` (`set null`, mesma razão)
+para curso; `nota.materia_id` (`restrict`) para matéria.
+
+**Files:**
+- Create: `supabase/migrations/0014_remover_cadastros.sql`, `testes/rls/remover_instituicao.test.js`,
+  `testes/rls/remover_cadastro_simples.test.js`, `testes/rls/remover_cadastros_estranho.test.js`
+- Modify: `testes/rls/privilegios.test.js` (`FUNCOES_DO_APP`), `src/dados/referencia.js`
+  (`removerInstituicao`, `removerCadastro`), `src/componentes/ListaInstituicoes.vue`,
+  `ListaProvas.vue`, `ListaSimples.vue` (botão Remover, com `confirm()`), `src/telas/Cadastros.vue`
+  (fecha o formulário se o item removido estava em edição)
+
+**Desenho:** `public.remover_instituicao(p_id bigint) returns text` (devolve o `logo_path` — o
+Supabase não deixa apagar de `storage.objects` por SQL, só pela Storage API; quem chama remove o
+arquivo do bucket `logos` depois de a remoção confirmar, igual `mesclarInstituicoes`) e
+`public.remover_cadastro_simples(p_tabela text, p_id bigint) returns void` para prova/curso/
+matéria, com `p_tabela` validado por `if/elsif` contra uma lista fechada de três valores — sem SQL
+dinâmico. As duas funções são `security invoker` (a RLS de membro decide; não-membro não enxerga
+nem remove — mesma checagem inicial via `select`, e por isso id inexistente ou invisível pela RLS
+caem na mesma exceção "não existe", como em `mesclar_instituicoes`), `search_path = ''`, tudo
+qualificado por `public.`, `revoke all ... from public, anon, service_role` +
+`grant execute ... to authenticated` (convenção da `0011`/`0012`). Checagem de uso e `delete` na
+mesma função/transação: atômico, não depende da ordem de chamadas do cliente; a FK `restrict`
+continua como rede de segurança por baixo.
+
+**Verificação:** `npx supabase db reset && npm test` verde; `npm test` de novo (sem reset) verde;
+`npm run build` OK.
+
+**Commit:** `feat: remover cadastros de referencia sem uso`.
+
+**Para o hospedado:** o Bernardo aplica a `0014` (push de migração) depois do merge.
+
+---
+
 # Marco 4 — Ficha do depoimento
 
 **Entrega ao fim do marco:** a equipe cadastra depoimentos completos à mão, com participações, notas, resultados, print e aluno.
