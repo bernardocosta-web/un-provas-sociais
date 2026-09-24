@@ -4190,37 +4190,101 @@ git commit -m "feat: ficha do depoimento com participacoes, notas, resultados e 
 > em `PainelFiltros.vue` deve montar o estado limpo com `estadoVazio()`,
 > nunca `{ ...ESTADO_VAZIO }` nem mutação direta de `ESTADO_VAZIO`.
 
+> **Terceira emenda (revisão Marco 4, 2026-09-24) — conflito com a Task 20; aplicada nos Steps 1 e
+> 3 abaixo e na lista de Files.** `src/lib/rotas.js` **já existe**, criado pela Task 20 (junto com
+> `testes/lib/rotas.test.js`), com `interpretarRota(hash) → { tela, id }` e `rotaDaFicha(id)`. Esta
+> tarefa **não cria** um arquivo novo com `lerRota`/`montarRota` como os Steps 1 e 3 originais
+> descreviam — ela **modifica** o arquivo e o teste existentes, mantendo os dois nomes de função e
+> o uso de `rotaDaFicha` no `:key` de `<Ficha>` em `App.vue`. Mudanças de comportamento exigidas:
+> - `interpretarRota` passa a devolver também `consulta` e a aceitar `?consulta` depois do caminho,
+>   para `ficha` e para a lista (hoje o regex `PADRAO_FICHA` exige `^#\/ficha...\/?$`: qualquer
+>   coisa depois da barra final — inclusive `?aba=...` — falha o match inteiro, então
+>   `#/ficha/42?aba=GOOGLE_REVIEW` e `#/depoimentos?ano=2025` cairiam no fallback).
+> - `#/depoimentos` (com ou sem `?consulta`) e o hash vazio passam a abrir a tela `'depoimentos'`
+>   (a lista desta tarefa) — não mais `'cadastros'`, que era o fallback de hoje. A tela de
+>   cadastros (existente desde marcos anteriores) continua existindo, mas só por rota explícita,
+>   `#/cadastros`; um id de ficha inválido também cai em `'depoimentos'` agora, não em
+>   `'cadastros'` — mesmo padrão-fallback do resto.
+> - `App.vue` ganha o link "Depoimentos" (`#/depoimentos`); o link hoje chamado "Cadastros" passa a
+>   apontar para `#/cadastros` em vez de `#/`, já que `#/` deixa de cair em cadastros. O `:key` de
+>   `<Ficha>` continua `rota.id ?? 'nova'`.
+> - O botão "Voltar" de `Ficha.vue` (`<a href="#/">Voltar</a>`) passa a levar à lista sem precisar
+>   trocar o `href`: como `#/` cai em `'depoimentos'` pelo ponto acima, o destino muda sozinho.
+> - "Novo depoimento" (`#/ficha`, sem id) clicado estando já em `#/ficha` hoje não reseta a ficha —
+>   o hash não muda, `hashchange` não dispara, e a `key` (`rota.id ?? 'nova'`) também não muda, então
+>   o Vue não remonta `<Ficha>`. Corrigir dando um `key` que também varia dentro do estado "nova"
+>   (ex.: um contador em `App.vue` incrementado sempre que o link "Novo depoimento" é clicado
+>   estando já na ficha nova, combinado na `key` como `` `${rota.id ?? 'nova-' + contador}` ``).
+>
+> `buscar_depoimentos` (0010, Task 11) devolve `setof public.depoimento` — sem os tipos
+> (`depoimento_tipo`) nem as logos das instituições aprovadas (via `participacao.resultado.
+> instituicao`) que a linha da lista (Step 6) exige. Verificado contra a API local
+> (`http://127.0.0.1:54321/rest/v1/rpc/buscar_depoimentos`, com um JWT de membro de equipe assinado
+> com o `JWT_SECRET` local): o PostgREST **aceita** embedding de tabela sobre uma função RPC que
+> devolve `setof` de uma tabela, com a mesma sintaxe do embedding numa tabela normal — a chamada
+> `POST .../rpc/buscar_depoimentos?select=*,depoimento_tipo(tipo),participacao(resultado(situacao,
+> instituicao(logo_path,nome_canonico)))` devolveu 200 com os dados aninhados corretos num teste
+> manual contra o banco local (depoimento com tipo, participação, resultado aprovado e instituição
+> com `logo_path`; dados de teste criados e removidos na hora, nada ficou no banco). `buscarDepoimentos`
+> em `src/dados/depoimentos.js` (hoje só `supabase.rpc('buscar_depoimentos', { p_filtros: filtros })`,
+> sem `.select()`) passa a aceitar um `select` de embedding opcional e a usá-lo aqui; não é preciso
+> uma segunda consulta por ids.
+>
+> Lembrar as decisões já registradas nas emendas acima: a aba (`AbasFonte.vue`) é filtro de fonte,
+> não um controle de `PainelFiltros.vue`; "Tem link?" refere-se só a `link_original`
+> (`tem_link_original`, migração nova com o próximo número livre conferido na hora); o botão de
+> limpar filtros usa `estadoVazio()`.
+
 **Files:**
-- Create: `src/telas/Lista.vue`, `src/componentes/PainelFiltros.vue`, `src/componentes/LinhaDepoimento.vue`, `src/componentes/AbasFonte.vue`, `src/lib/rotas.js`, `testes/lib/rotas.test.js`
-- Modify: `src/App.vue`
+- Create: `src/telas/Lista.vue`, `src/componentes/PainelFiltros.vue`, `src/componentes/LinhaDepoimento.vue`, `src/componentes/AbasFonte.vue`
+- Modify: `src/App.vue`, `src/telas/Ficha.vue` (remontagem de "Novo depoimento"), `src/lib/rotas.js`, `testes/lib/rotas.test.js` (já existem, criados pela Task 20), `src/dados/depoimentos.js` (`buscarDepoimentos` aceita embedding)
 
 **Interfaces:**
-- Consumes: `montarFiltros`, `filtrosParaUrl`, `urlParaFiltros` (Task 12); `buscarDepoimentos` (Task 19)
+- Consumes: `montarFiltros`, `filtrosParaUrl`, `urlParaFiltros` (Task 12); `buscarDepoimentos` (Task 19); `interpretarRota`, `rotaDaFicha` (Task 20, `src/lib/rotas.js`)
 - Produces: rota `#/depoimentos?...`
 
-- [ ] **Step 1: Teste do roteador por hash**
+- [ ] **Step 1: Estender o teste do roteador por hash (arquivo já existe, Task 20)**
 
 O GitHub Pages não reescreve URL para aplicação de página única; com hash o problema não existe.
-
-`testes/lib/rotas.test.js`:
+`testes/lib/rotas.test.js` já cobre `#/ficha`, `#/ficha/:id` e id inválido — ver a terceira emenda
+acima. Acrescentar (mantendo os `describe`s existentes):
 
 ```js
 import { describe, it, expect } from 'vitest'
-import { lerRota, montarRota } from '../../src/lib/rotas.js'
+import { interpretarRota, rotaDaFicha } from '../../src/lib/rotas.js'
 
-describe('rotas por hash', () => {
-  it('hash vazio cai na lista', () => {
-    expect(lerRota('')).toEqual({ tela: 'depoimentos', id: null, consulta: '' })
+describe('interpretarRota — consulta e telas novas (Task 21)', () => {
+  it('hash vazio abre a lista de depoimentos', () => {
+    expect(interpretarRota('')).toEqual({ tela: 'depoimentos', id: null, consulta: '' })
   })
 
-  it('le tela, id e consulta', () => {
-    expect(lerRota('#/ficha/42?aba=GOOGLE_REVIEW'))
+  it('#/ (Voltar da Ficha) tambem abre a lista', () => {
+    expect(interpretarRota('#/')).toEqual({ tela: 'depoimentos', id: null, consulta: '' })
+  })
+
+  it('#/depoimentos le a consulta depois do caminho', () => {
+    expect(interpretarRota('#/depoimentos?ano=2025'))
+      .toEqual({ tela: 'depoimentos', id: null, consulta: 'ano=2025' })
+  })
+
+  it('#/ficha/42?aba=... le id e consulta juntos', () => {
+    expect(interpretarRota('#/ficha/42?aba=GOOGLE_REVIEW'))
       .toEqual({ tela: 'ficha', id: 42, consulta: 'aba=GOOGLE_REVIEW' })
   })
 
-  it('ida e volta', () => {
-    const rota = { tela: 'depoimentos', id: null, consulta: 'ano=2025' }
-    expect(lerRota(montarRota(rota))).toEqual(rota)
+  it('#/cadastros so abre por rota explicita', () => {
+    expect(interpretarRota('#/cadastros')).toEqual({ tela: 'cadastros', id: null, consulta: '' })
+  })
+
+  it('id de ficha invalido cai na lista, nao mais em cadastros', () => {
+    expect(interpretarRota('#/ficha/abc')).toEqual({ tela: 'depoimentos', id: null, consulta: '' })
+  })
+})
+
+describe('rotaDaFicha — sem mudanca', () => {
+  it('continua so cuidando da rota da ficha, sem consulta', () => {
+    expect(rotaDaFicha(12)).toBe('#/ficha/12')
+    expect(rotaDaFicha(null)).toBe('#/ficha')
   })
 })
 ```
@@ -4228,27 +4292,37 @@ describe('rotas por hash', () => {
 - [ ] **Step 2: Rodar e ver falhar**
 
 Run: `npx vitest run testes/lib/rotas.test.js`
-Expected: FAIL.
+Expected: FAIL (os casos novos acima; os casos já existentes de `#/ficha`/`#/ficha/:id`/id inválido
+continuam passando, intactos).
 
-- [ ] **Step 3: Implementar `src/lib/rotas.js`**
+- [ ] **Step 3: Estender `src/lib/rotas.js` (arquivo já existe, Task 20)**
+
+Trocar o `PADRAO_FICHA` isolado por um roteador que reconhece as quatro telas e devolve `consulta`:
 
 ```js
-export function lerRota(hash) {
-  const bruto = (hash ?? '').replace(/^#\/?/, '')
-  const [caminho, consulta = ''] = bruto.split('?')
-  const [tela, id] = caminho.split('/')
-  return {
-    tela: tela || 'depoimentos',
-    id: id ? Number(id) : null,
-    consulta,
+const PADRAO_ROTA = /^#\/(ficha(?:\/(\d+))?|cadastros|depoimentos)?\/?(?:\?(.*))?$/
+
+export function interpretarRota(hash) {
+  const achado = PADRAO_ROTA.exec(hash ?? '')
+  const consulta = achado?.[3] ?? ''
+  if (!achado || achado[1] === undefined || achado[1] === 'depoimentos') {
+    return { tela: 'depoimentos', id: null, consulta }
   }
+  if (achado[1] === 'cadastros') return { tela: 'cadastros', id: null, consulta }
+  // achado[1] e 'ficha' ou 'ficha/<digitos>' (achado[2])
+  if (achado[2] === undefined) return { tela: 'ficha', id: null, consulta }
+  const id = Number(achado[2])
+  if (!Number.isSafeInteger(id) || id < 1) return { tela: 'depoimentos', id: null, consulta: '' }
+  return { tela: 'ficha', id, consulta }
 }
 
-export function montarRota({ tela, id, consulta }) {
-  const caminho = id != null ? `${tela}/${id}` : tela
-  return `#/${caminho}${consulta ? '?' + consulta : ''}`
+export function rotaDaFicha(id) {
+  return id == null ? '#/ficha' : `#/ficha/${id}`
 }
 ```
+
+`App.vue` e `Ficha.vue` mudam conforme a terceira emenda acima (link "Depoimentos", link
+"Cadastros" apontando para `#/cadastros`, remontagem de "Novo depoimento").
 
 - [ ] **Step 4: `AbasFonte.vue`**
 
