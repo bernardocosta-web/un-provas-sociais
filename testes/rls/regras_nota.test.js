@@ -64,6 +64,59 @@ describe('nota', () => {
     expect(r.rows[0].percentual).toBeNull()
   })
 
+  it('faixa: negativo e recusado em PERCENTUAL', async () => {
+    await expect(inserirNota({ valor: -0.01, escala: 'PERCENTUAL' }))
+      .rejects.toThrow(/ck_nota_nao_negativa/)
+  })
+
+  it('faixa: negativo e recusado em PONTOS', async () => {
+    await expect(inserirNota({ valor: -1, escala: 'PONTOS', maximo: 20 }))
+      .rejects.toThrow(/ck_nota_nao_negativa/)
+  })
+
+  it('faixa: negativo e recusado em TRI', async () => {
+    await expect(inserirNota({ valor: -1, escala: 'TRI' }))
+      .rejects.toThrow(/ck_nota_nao_negativa/)
+  })
+
+  it('faixa: PERCENTUAL acima de 100 e recusado', async () => {
+    await expect(inserirNota({ valor: 100.01, escala: 'PERCENTUAL' }))
+      .rejects.toThrow(/ck_percentual_ate_100/)
+  })
+
+  it('faixa: PONTOS acima do maximo e recusado', async () => {
+    await expect(inserirNota({ valor: 21, escala: 'PONTOS', maximo: 20 }))
+      .rejects.toThrow(/ck_pontos_ate_maximo/)
+  })
+
+  it('PONTOS: 20 de 20 vira percentual 100', async () => {
+    const r = await inserirNota({ valor: 20, escala: 'PONTOS', maximo: 20 })
+    expect(Number(r.rows[0].percentual)).toBe(100)
+  })
+
+  it('faixa: PONTOS muito acima do maximo e recusado por ck_pontos_ate_maximo, nao por overflow', async () => {
+    // Antes das faixas, 1000 de 1 estourava numeric(6,2) na coluna gerada
+    // (SQLSTATE 22003 "numeric field overflow"). Agora tem de ser recusado
+    // pela constraint, com a causa de negocio no nome, nao por overflow.
+    await expect(inserirNota({ valor: 1000, escala: 'PONTOS', maximo: 1 }))
+      .rejects.toThrow(/ck_pontos_ate_maximo/)
+  })
+
+  it('faixa: TRI acima de 1000 e recusado', async () => {
+    await expect(inserirNota({ valor: 1000.01, escala: 'TRI' }))
+      .rejects.toThrow(/ck_tri_faixa/)
+  })
+
+  it('faixa: TRI 1000 e aceito', async () => {
+    const r = await inserirNota({ valor: 1000, escala: 'TRI' })
+    expect(r.rows[0].percentual).toBeNull()
+  })
+
+  it('faixa: TRI 0 e aceito', async () => {
+    const r = await inserirNota({ valor: 0, escala: 'TRI' })
+    expect(r.rows[0].percentual).toBeNull()
+  })
+
   it('percentual nao pode ser escrito por codigo', async () => {
     const c = await conectar()
     try {

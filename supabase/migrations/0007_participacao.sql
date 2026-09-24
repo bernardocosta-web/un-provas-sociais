@@ -18,17 +18,47 @@ create table nota (
 
   -- Coluna GERADA. Nenhum codigo a escreve, logo ela nao tem como
   -- divergir do valor original. TRI nunca vira percentual.
+  --
+  -- O ramo PONTOS retorna nulo quando valor_original excede valor_maximo:
+  -- essa linha sera recusada por ck_pontos_ate_maximo de qualquer forma, e
+  -- o retorno nulo evita que o Postgres calcule um percentual fora da faixa
+  -- (ex.: 1000 de 1 -> 100000) que estouraria numeric(6,2). A coluna gerada
+  -- e calculada antes das constraints de check serem avaliadas, entao sem
+  -- essa guarda o erro seria "numeric field overflow", nao a constraint.
   percentual numeric(6,2) generated always as (
     case escala
       when 'PERCENTUAL' then valor_original
-      when 'PONTOS'     then round(valor_original / valor_maximo * 100, 2)
+      when 'PONTOS'     then case
+                                when valor_original > valor_maximo then null
+                                else round(valor_original / valor_maximo * 100, 2)
+                              end
       else null
     end
   ) stored,
 
   -- Regra 2: "18 de 20" sem o 20 e dado inutil.
   constraint ck_pontos_exige_maximo
-    check (escala <> 'PONTOS' or (valor_maximo is not null and valor_maximo > 0))
+    check (escala <> 'PONTOS' or (valor_maximo is not null and valor_maximo > 0)),
+
+  -- Nenhuma nota negativa faz sentido em nenhuma escala.
+  constraint ck_nota_nao_negativa
+    check (valor_original >= 0),
+
+  -- Percentual e sempre 0-100 por definicao da escala.
+  constraint ck_percentual_ate_100
+    check (escala <> 'PERCENTUAL' or valor_original <= 100),
+
+  -- Nao da para tirar mais pontos do que o maximo da prova
+  -- (o ck_pontos_exige_maximo acima so garante que o maximo existe e e > 0).
+  constraint ck_pontos_ate_maximo
+    check (escala <> 'PONTOS' or valor_original <= valor_maximo),
+
+  -- Faixa do TRI (0 a 1000): a unica prova TRI do dominio e o ENEM; as
+  -- areas objetivas ficam na pratica abaixo de 1000 (escala centrada em
+  -- 500) e a redacao vai de 0 a 1000. O teto admite todo valor real e
+  -- recusa o erro de digitacao classico (820 digitado como 8200).
+  constraint ck_tri_faixa
+    check (escala <> 'TRI' or valor_original <= 1000)
 );
 create index on nota (participacao_id);
 create index on nota (materia_id, percentual);
