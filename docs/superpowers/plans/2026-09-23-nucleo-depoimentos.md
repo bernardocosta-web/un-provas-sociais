@@ -1932,6 +1932,18 @@ git commit -m "feat(lib): montagem de filtros e serializacao na URL"
 ### Task 13 — MANUAL (Bernardo): projeto Supabase e login Google
 
 > **Emenda pós-aprovação (2026-09-24).** O Step 3 (ligar o Google no painel) precisa replicar no hospedado o que o M1-A já fez no `config.toml` local para "login só pelo Google", ou o painel hospedado fica mais permissivo que o local. Em **Authentication → Providers**, além de ligar o Google: desligar **"Enable Email provider"** (não confundir com "Allow new users to sign up", que deve continuar **ligado** — é o global que permite o primeiro login do Google criar o usuário); conferir que **Phone** e **Anonymous** continuam desligados; e, no provedor de e-mail (mesmo desligado), deixar **"Confirm email"** e **"Secure email change"** ligados. Motivo em uma frase: `eh_membro_equipe()` confia no e-mail do JWT, e só um provedor único (Google) com e-mail comprovado garante que esse e-mail não foi forjado (ver invariante "Login só pelo Google" no CLAUDE.md).
+>
+> **Ordem corrigida.** O Step 5 (`supabase link` + `db push`) roda **antes** do Step 4 (cadastrar os membros da equipe) — a tabela `membro_equipe` só existe depois do push das migrações. Os comandos do Step 5 rodam **a partir desta pasta do worktree** (as migrações vivem na branch de trabalho até ela ser mesclada) e exigem `npx supabase login` antes do `npx supabase link` (passo que faltava). Ordem real de execução: Step 1, Step 2, Step 3, Step 5, Step 4, Step 6 — a numeração do texto abaixo não foi alterada.
+>
+> **Passo faltante — URL Configuration.** Em **Authentication → URL Configuration**: **Site URL** `https://<dono-do-repo>.github.io/un-provas-sociais/`; **Redirect URLs** `https://<dono-do-repo>.github.io/un-provas-sociais/**` e `http://localhost:5173/un-provas-sociais/**`.
+>
+> **Nomes atuais no painel.** Em **Project Settings → API Keys** o Supabase hoje mostra uma **"Publishable key"** (`sb_publishable_…`); a **anon key** antiga fica em **"Legacy API keys"**. Qualquer uma das duas serve como `VITE_SUPABASE_ANON_KEY` (Step 6) — escolher uma e usar sempre a mesma, nunca a chave **Secret**/`service_role`.
+>
+> **Google Auth Platform.** A tela de permissão OAuth (Step 2) hoje mora em **"Google Auth Platform"** (abas Branding / Audience / Data Access / Clients) — os nomes dos menus mudaram, o fluxo descrito continua valendo. Contas Google Workspace têm a opção de público **"Internal"** (login restrito ao domínio da organização, sem precisar publicar) como alternativa ao **"External"** do Step 2; decisão do dono, ainda em aberto.
+>
+> **Exposição de tabelas.** O projeto foi criado com **"Automatically expose new tables" desligado**: os privilégios da API vêm só das migrações a partir da `0011_privilegios.sql` (GRANTs explícitos). Depois do `db push` (Step 5), o dono pode conferir no projeto hospedado que `anon` não tem privilégio nenhum em `public`.
+>
+> **Migrações append-only.** A partir do `db push` deste Step 5, as migrações do projeto são append-only (mesma convenção das emendas M3-G nas Tasks 17, 19, 21 e 23): nada de editar uma migração já aplicada, só criar a próxima.
 
 **Files:** nenhum.
 
@@ -3403,6 +3415,51 @@ git commit -m "feat: ficha do depoimento com participacoes, notas, resultados e 
 ---
 
 ### Task 21: Lista com filtros, abas e URL
+
+> **Emenda pós-aprovação (2026-09-24).** Duas decisões do dono sobre os
+> filtros da lista:
+> 1. **A fonte não é um controle do `PainelFiltros.vue`.** É a
+>    `AbasFonte.vue` que define a fonte (`aba`) — "Todos" mostra todas as
+>    fontes, cada outra aba mostra uma fonte só. `montarFiltros` já
+>    converte `aba` em `fontes` (Task 12, Step 1: "a aba vira filtro de
+>    fonte"); `PainelFiltros.vue` não ganha um controle de Fonte
+>    separado. Reavaliar quando o subprojeto #2 trouxer mais fontes.
+> 2. **"Tem link?" refere-se só ao link original.** `PainelFiltros.vue`
+>    ganha um controle sim/não "Tem link original?" (não existe controle
+>    para `link_post`). Consequências:
+>    - **SQL.** `buscar_depoimentos` (0010_busca.sql, Task 11) ganha a
+>      chave `tem_link_original` (boolean) em `p_filtros`, no mesmo
+>      padrão de `tem_print`: ausente/`null` não filtra; `true` exige
+>      `d.link_original is not null and btrim(d.link_original) <> ''`;
+>      `false` exige o contrário (`null` ou só espaço). Como a função já
+>      existe (0010) e já tem `grant execute ... to authenticated` desde
+>      a `0011_privilegios.sql`, a mudança é só um
+>      `create or replace function public.buscar_depoimentos(...)` numa
+>      migração **nova** — migrações são append-only a partir da `0011`
+>      (mesma convenção das emendas M3-G nas Tasks 17 e 19: número livre
+>      conferido em `supabase/migrations/` na hora de implementar, não
+>      hardcoded aqui — hoje seria `0014`, depois de `0012_mesclar.sql` e
+>      `0013_salvar_depoimento.sql`, mas conferir se a Task 23 já tomou
+>      esse número primeiro). `CREATE OR REPLACE FUNCTION` preserva os
+>      privilégios já concedidos quando a assinatura não muda (continua
+>      `buscar_depoimentos(p_filtros jsonb)`), então **não é preciso**
+>      `grant`/`revoke` novos nem tocar `FUNCOES_DO_APP` em
+>      `testes/rls/privilegios.test.js` — só o teste de comportamento do
+>      filtro (novo caso em `testes/rls/busca.test.js` ou onde a Task 11
+>      testar `buscar_depoimentos`, cobrindo `true`/`false`/ausente e o
+>      caso de string em branco).
+>    - **`src/lib/filtros.js` (Task 12).** `ESTADO_VAZIO` ganha
+>      `temLinkOriginal: null`; `montarFiltros` emite
+>      `tem_link_original` quando presente (mesmo tratamento boolean de
+>      `tem_print`); a URL usa a chave `link` (`?link=sim`/`?link=nao`),
+>      convertida para `true`/`false`/ausente por `urlParaFiltros`; ida e
+>      volta preservada. Testes de regressão em
+>      `testes/lib/filtros.test.js`, no padrão das emendas já registradas
+>      na Task 12.
+>
+> Ver também a emenda da Task 12 (Fix round 2): o botão de limpar filtros
+> em `PainelFiltros.vue` deve montar o estado limpo com `estadoVazio()`,
+> nunca `{ ...ESTADO_VAZIO }` nem mutação direta de `ESTADO_VAZIO`.
 
 **Files:**
 - Create: `src/telas/Lista.vue`, `src/componentes/PainelFiltros.vue`, `src/componentes/LinhaDepoimento.vue`, `src/componentes/AbasFonte.vue`, `src/lib/rotas.js`, `testes/lib/rotas.test.js`

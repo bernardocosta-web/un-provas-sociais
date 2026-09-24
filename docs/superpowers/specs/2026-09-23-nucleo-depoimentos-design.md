@@ -253,12 +253,14 @@ Filtros à esquerda, resultados à direita, contagem sempre visível.
 | Filtro | Comportamento |
 |---|---|
 | Texto livre | busca no texto completo e no resumo |
-| Tipo, Fonte, Status, Canal | múltipla escolha |
+| Tipo, Status, Canal | múltipla escolha |
 | Instituição, Prova, Curso | autocompletar |
 | Ano da participação | ano exato ou faixa |
 | **Percentual** | N condições somadas: matéria + operador. "100% em física" **e** "90%+ em matemática" ao mesmo tempo |
 | **TRI** | controle separado, por pontuação |
-| Tem print? Tem link? | sim/não |
+| Tem print? Tem link original? | sim/não |
+
+> **Nota (2026-09-24).** A fonte não é um filtro à parte: é a aba (ver "Abas por fonte" abaixo) — "Todos" mostra todas as fontes, cada outra aba mostra uma fonte só. Reavaliar quando o subprojeto #2 trouxer mais fontes. "Tem link?" refere-se apenas ao link original (`link_original`); não existe filtro para o link do post (`link_post`).
 
 #### Semântica: os filtros valem no nível do depoimento
 
