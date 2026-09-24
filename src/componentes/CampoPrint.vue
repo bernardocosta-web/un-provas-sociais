@@ -23,6 +23,7 @@ watch(() => props.atual, async (caminho) => {
   if (!caminho) return
   try {
     urlAtual.value = await urlAssinadaDoPrint(caminho)
+    erro.value = ''
   } catch (e) {
     erro.value = mensagemDeErro(e)
   }
@@ -31,6 +32,17 @@ watch(() => props.atual, async (caminho) => {
 function trocarPrevia(url) {
   if (previa.value) URL.revokeObjectURL(previa.value)
   previa.value = url
+}
+
+// Descarta o print novo pendente (ainda nao enviado ao bucket — Ficha so
+// envia ao salvar) e volta a mostrar a previa do print ja salvo, se houver.
+// Nao mexe em `atual`/`urlAtual`: quem decide remover o print salvo e outra
+// decisao de produto, fora do escopo daqui.
+function descartar() {
+  trocarPrevia(null)
+  tamanhos.value = null
+  erro.value = ''
+  emit('arquivo', null)
 }
 
 // comprimir() recusa navegador sem WebP (Safari) e imagem que não decodifica:
@@ -78,6 +90,7 @@ onUnmounted(() => {
       <img :src="previa" alt="Prévia do print novo" />
       <small v-if="tamanhos">{{ tamanhos.antes }} KB → {{ tamanhos.depois }} KB</small>
       <small v-if="atual"> — substitui o print atual ao salvar.</small>
+      <button type="button" @click="descartar">Descartar</button>
     </template>
     <img v-else-if="urlAtual" :src="urlAtual" alt="Print salvo" />
     <p v-if="erro" role="alert">{{ erro }}</p>
