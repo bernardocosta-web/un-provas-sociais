@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { montarFiltros, filtrosParaUrl, urlParaFiltros, ESTADO_VAZIO } from '../../src/lib/filtros.js'
+import {
+  montarFiltros, filtrosParaUrl, urlParaFiltros, ESTADO_VAZIO, estadoVazio,
+} from '../../src/lib/filtros.js'
 
 describe('montarFiltros', () => {
   it('estado vazio vira objeto vazio', () => {
@@ -227,6 +229,238 @@ describe('urlParaFiltros: 4o segmento desconhecido e descartado, nao rejeitado',
 describe('texto com caracteres especiais preserva ida e volta', () => {
   it('virgula, dois-pontos e "&" sobrevivem ao round-trip', () => {
     const estado = { ...ESTADO_VAZIO, texto: 'a,b:c&d' }
+    expect(urlParaFiltros(filtrosParaUrl(estado))).toEqual(estado)
+  })
+})
+
+// --- Fix round 2 (Marco 2, 2026-09-24): URL editada a mao ainda derruba a
+// busca. Ver .superpowers/sdd/2026-09-23-nucleo-depoimentos/marco-2-fix-brief.md
+// item 1. Probes da revisao: instituicoes=1.5, notas=1.5:90:PERCENTUAL,
+// provas=1e30, ano=99999, ano_de=-40000 derrubavam buscar_depoimentos com
+// erro de banco (bigint/smallint) em vez de tratar como ausente.
+
+describe('urlParaFiltros: ids de lista exigem inteiro seguro e positivo', () => {
+  it('instituicoes=1.5 (decimal) e descartado, nao vira erro de bigint', () => {
+    expect(urlParaFiltros('instituicoes=1.5').instituicoes).toEqual([])
+  })
+
+  it('provas=1e30 (fora da faixa segura de inteiro) e descartado', () => {
+    expect(urlParaFiltros('provas=1e30').provas).toEqual([])
+  })
+
+  it('cursos=-3 (nao positivo) e descartado', () => {
+    expect(urlParaFiltros('cursos=-3').cursos).toEqual([])
+  })
+
+  it('cursos=0 (nao positivo) e descartado', () => {
+    expect(urlParaFiltros('cursos=0').cursos).toEqual([])
+  })
+
+  it('id valido misturado com invalido preserva so o valido', () => {
+    expect(urlParaFiltros('instituicoes=1.5,7,-3,8').instituicoes).toEqual([7, 8])
+  })
+})
+
+describe('urlParaFiltros: ano/ano_de/ano_ate exigem a faixa de ck_ano (1990-2100)', () => {
+  it('ano=99999 (fora da faixa de smallint) vira null', () => {
+    expect(urlParaFiltros('ano=99999').ano).toBeNull()
+  })
+
+  it('ano_de=-40000 (fora da faixa de smallint) vira null', () => {
+    expect(urlParaFiltros('ano_de=-40000').anoDe).toBeNull()
+  })
+
+  it('ano=1989 (abaixo do minimo de ck_ano) vira null', () => {
+    expect(urlParaFiltros('ano=1989').ano).toBeNull()
+  })
+
+  it('ano=2101 (acima do maximo de ck_ano) vira null', () => {
+    expect(urlParaFiltros('ano=2101').ano).toBeNull()
+  })
+
+  it('ano=1990 (limite minimo de ck_ano) e aceito', () => {
+    expect(urlParaFiltros('ano=1990').ano).toBe(1990)
+  })
+
+  it('ano=2100 (limite maximo de ck_ano) e aceito', () => {
+    expect(urlParaFiltros('ano=2100').ano).toBe(2100)
+  })
+})
+
+describe('urlParaFiltros: notas com materia_id decimal e descartada (evitava erro de bigint)', () => {
+  it('notas=1.5:90:PERCENTUAL descarta a condicao inteira', () => {
+    expect(urlParaFiltros('notas=1.5:90:PERCENTUAL').notas).toEqual([])
+  })
+})
+
+describe('urlParaFiltros: familia desconhecida descarta a condicao', () => {
+  it('notas=1:90:FOO nao vira condicao de percentual por engano', () => {
+    expect(urlParaFiltros('notas=1:90:FOO').notas).toEqual([])
+  })
+})
+
+describe('urlParaFiltros: print so aceita "true"/"false" literal', () => {
+  it('print=sim (lixo) vira null, nao false', () => {
+    expect(urlParaFiltros('print=sim').temPrint).toBeNull()
+  })
+
+  it('print=true vira true', () => {
+    expect(urlParaFiltros('print=true').temPrint).toBe(true)
+  })
+
+  it('print=false vira false', () => {
+    expect(urlParaFiltros('print=false').temPrint).toBe(false)
+  })
+
+  it('print ausente vira null', () => {
+    expect(urlParaFiltros('').temPrint).toBeNull()
+  })
+})
+
+describe('montarFiltros: mesma coercao/validacao numerica se aplica ao estado (defesa em profundidade)', () => {
+  it('id nao inteiro/nao positivo na lista e descartado mesmo vindo do estado', () => {
+    expect(montarFiltros({ ...ESTADO_VAZIO, instituicoes: [1.5, -3, 0, 8] }))
+      .toEqual({ instituicoes: [8] })
+  })
+
+  it('ano fora da faixa 1990-2100 e descartado mesmo vindo do estado', () => {
+    expect(montarFiltros({ ...ESTADO_VAZIO, ano: 99999 })).toEqual({})
+  })
+
+  it('materia_id nao inteiro na condicao de nota e descartado (evitava erro de bigint)', () => {
+    const estado = { ...ESTADO_VAZIO, notas: [{ materia_id: 1.5, minimo: 90, familia: 'PERCENTUAL' }] }
+    expect(montarFiltros(estado)).toEqual({})
+  })
+
+  it('familia desconhecida na condicao de nota e descartada mesmo vindo do estado', () => {
+    const estado = { ...ESTADO_VAZIO, notas: [{ materia_id: 1, minimo: 90, familia: 'FOO' }] }
+    expect(montarFiltros(estado)).toEqual({})
+  })
+
+  it('minimo aceita decimal', () => {
+    const estado = { ...ESTADO_VAZIO, notas: [{ materia_id: 1, minimo: 92.5, familia: 'PERCENTUAL' }] }
+    expect(montarFiltros(estado)).toEqual({ notas: [{ materia_id: 1, minimo: 92.5 }] })
+  })
+})
+
+describe('montarFiltros: coercao central de string vinda de formulario', () => {
+  it('ids de lista em string sao coeridos para numero', () => {
+    expect(montarFiltros({ ...ESTADO_VAZIO, instituicoes: ['7', '8'] }))
+      .toEqual({ instituicoes: [7, 8] })
+  })
+
+  it('materia_id e minimo em string sao coeridos para numero', () => {
+    const estado = { ...ESTADO_VAZIO, notas: [{ materia_id: '1', minimo: '90', familia: 'PERCENTUAL' }] }
+    expect(montarFiltros(estado)).toEqual({ notas: [{ materia_id: 1, minimo: 90 }] })
+  })
+
+  it('ano em string e coerido e validado pela faixa', () => {
+    expect(montarFiltros({ ...ESTADO_VAZIO, ano: '2025' })).toEqual({ ano: 2025 })
+  })
+
+  it('string so com espaco em id de lista e descartada, nao vira 0', () => {
+    expect(montarFiltros({ ...ESTADO_VAZIO, instituicoes: ['  ', '7'] }))
+      .toEqual({ instituicoes: [7] })
+  })
+})
+
+// --- Item 2 do brief: ESTADO_VAZIO nao pode compartilhar arrays entre
+// copias, e a UI precisa de uma copia nova e mutavel para limpar filtros.
+
+describe('estadoVazio() / ESTADO_VAZIO: nao compartilham arrays', () => {
+  it('mutar a copia de estadoVazio() nao afeta ESTADO_VAZIO', () => {
+    const copia = estadoVazio()
+    copia.tipos.push('X')
+    expect(ESTADO_VAZIO.tipos).toEqual([])
+  })
+
+  it('estadoVazio() devolve um objeto igual a ESTADO_VAZIO', () => {
+    expect(estadoVazio()).toEqual(ESTADO_VAZIO)
+  })
+
+  it('tentar mutar ESTADO_VAZIO.tipos lanca (modo estrito do ESM)', () => {
+    expect(() => ESTADO_VAZIO.tipos.push('X')).toThrow()
+  })
+
+  it('tentar mutar ESTADO_VAZIO.notas lanca', () => {
+    expect(() => ESTADO_VAZIO.notas.push({})).toThrow()
+  })
+
+  it('tentar reatribuir um campo de ESTADO_VAZIO lanca', () => {
+    expect(() => { ESTADO_VAZIO.aba = 'GOOGLE_REVIEW' }).toThrow()
+  })
+})
+
+// --- Item 3 do brief (parte lib): canal isolado e uma combinacao ampla —
+// spec §8 (docs/superpowers/specs/2026-09-23-nucleo-depoimentos-design.md)
+// cita "canal, combinações" entre os casos de montagem do filtro.
+
+describe('montarFiltros: canal', () => {
+  it('emite canais quando presente', () => {
+    expect(montarFiltros({ ...ESTADO_VAZIO, canais: ['MILITARES'] }))
+      .toEqual({ canais: ['MILITARES'] })
+  })
+
+  it('omite canais quando vazio', () => {
+    expect(montarFiltros({ ...ESTADO_VAZIO, canais: [] })).toEqual({})
+  })
+})
+
+describe('montarFiltros: combinacao ampla de campos', () => {
+  it('monta todos os campos juntos, cada um na sua chave', () => {
+    const estado = {
+      ...ESTADO_VAZIO,
+      aba: 'GOOGLE_REVIEW',
+      texto: 'ITA',
+      tipos: ['APROVACAO'],
+      canais: ['MILITARES'],
+      status: ['DISPONIVEL'],
+      instituicoes: [7],
+      provas: [3],
+      cursos: [4],
+      ano: 2025,
+      anoDe: 2020,
+      anoAte: 2025,
+      notas: [
+        { materia_id: 1, minimo: 100, familia: 'PERCENTUAL', operador: '=' },
+        { materia_id: 2, minimo: 900, familia: 'TRI' },
+      ],
+      temPrint: true,
+    }
+    expect(montarFiltros(estado)).toEqual({
+      fontes: ['GOOGLE_REVIEW'],
+      texto: 'ITA',
+      tipos: ['APROVACAO'],
+      canais: ['MILITARES'],
+      status: ['DISPONIVEL'],
+      instituicoes: [7],
+      provas: [3],
+      cursos: [4],
+      ano: 2025,
+      ano_de: 2020,
+      ano_ate: 2025,
+      notas: [{ materia_id: 1, minimo: 100, operador: '=' }],
+      tri: [{ materia_id: 2, minimo: 900 }],
+      tem_print: true,
+    })
+  })
+
+  it('a mesma combinacao sobrevive a ida e volta pela URL', () => {
+    const estado = {
+      ...ESTADO_VAZIO,
+      aba: 'GOOGLE_REVIEW',
+      texto: 'ITA',
+      tipos: ['APROVACAO'],
+      canais: ['MILITARES'],
+      status: ['DISPONIVEL'],
+      instituicoes: [7],
+      provas: [3],
+      cursos: [4],
+      anoDe: 2020,
+      anoAte: 2025,
+      notas: [{ materia_id: 1, minimo: 100, familia: 'PERCENTUAL', operador: '=' }],
+      temPrint: true,
+    }
     expect(urlParaFiltros(filtrosParaUrl(estado))).toEqual(estado)
   })
 })

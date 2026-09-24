@@ -8,54 +8,64 @@
 // materia_id (casam com nada em silencio); escalar no lugar de array, ou
 // ano/ano_de/ano_ate nao inteiro, derrubam a chamada com erro. Esta lib
 // nunca deve montar p_filtros assim.
+//
+// Fix round 2 (Marco 2, 2026-09-24): a coercao/validacao numerica central
+// e o parsing de URL moraram para o modulo irmao `normalizarFiltros.js`
+// (arquivo original passou de ~300 linhas). Ids exigem inteiro seguro e
+// positivo; ano/anoDe/anoAte exigem a faixa 1990-2100 de ck_ano; minimo so
+// exige numero finito (aceita decimal); familia desconhecida numa condicao
+// de nota descarta a condicao. Aplicado tanto em montarFiltros (estado da
+// UI, defesa em profundidade) quanto em urlParaFiltros (URL editada a mao).
 
+import {
+  idsValidos, anoValido, semNulos, condicaoValida,
+  coagirCondicao, validarOperador, textosLimpos, idsLimpos, analisarNotas,
+  temPrintOuNulo,
+} from './normalizarFiltros.js'
+
+export function estadoVazio() {
+  return {
+    aba: 'TODOS',
+    texto: '',
+    tipos: [],
+    canais: [],
+    status: [],
+    instituicoes: [],
+    provas: [],
+    cursos: [],
+    ano: null,
+    anoDe: null,
+    anoAte: null,
+    notas: [],
+    temPrint: null,
+  }
+}
+
+// Congelado no nivel do objeto E de cada array interno: sem o segundo
+// freeze, `{ ...ESTADO_VAZIO }` (copia rasa) ainda compartilharia os
+// mesmos arrays, e `copia.tipos.push('x')` mutaria o ESTADO_VAZIO de todo
+// mundo. Quem precisa de uma copia nova e mutavel usa `estadoVazio()`.
 export const ESTADO_VAZIO = Object.freeze({
-  aba: 'TODOS',
-  texto: '',
-  tipos: [],
-  canais: [],
-  status: [],
-  instituicoes: [],
-  provas: [],
-  cursos: [],
-  ano: null,
-  anoDe: null,
-  anoAte: null,
-  notas: [],
-  temPrint: null,
+  ...estadoVazio(),
+  tipos: Object.freeze([]),
+  canais: Object.freeze([]),
+  status: Object.freeze([]),
+  instituicoes: Object.freeze([]),
+  provas: Object.freeze([]),
+  cursos: Object.freeze([]),
+  notas: Object.freeze([]),
 })
 
-const LISTAS = {
+const LISTAS_TEXTO = {
   tipos: 'tipos',
   canais: 'canais',
   status: 'status',
+}
+
+const LISTAS_ID = {
   instituicoes: 'instituicoes',
   provas: 'provas',
   cursos: 'cursos',
-}
-
-// A funcao SQL nao tolera elemento null dentro de array. Nunca deixamos um
-// escapar daqui.
-function semNulos(lista) {
-  return (lista ?? []).filter((item) => item != null)
-}
-
-// Item de nota/tri sem materia_id ou minimo numerico casa com nada em
-// silencio no banco; melhor nem montar a condicao.
-function condicaoValida(nota) {
-  return Number.isFinite(nota.materia_id) && Number.isFinite(nota.minimo)
-}
-
-// Origem confiavel (estado da UI, em montarFiltros) e origem nao confiavel
-// (URL editada a mao, em urlParaFiltros) tratam operador invalido de jeito
-// diferente — ver as duas funcoes abaixo.
-const OPERADORES_VALIDOS = new Set(['=', '>='])
-
-function validarOperador(nota) {
-  const { operador } = nota
-  if (operador != null && !OPERADORES_VALIDOS.has(operador)) {
-    throw new Error(`operador invalido: ${operador}`)
-  }
 }
 
 export function montarFiltros(estado) {
@@ -63,19 +73,28 @@ export function montarFiltros(estado) {
 
   if (estado.aba && estado.aba !== 'TODOS') filtros.fontes = [estado.aba]
   if (estado.texto?.trim()) filtros.texto = estado.texto.trim()
-  if (Number.isInteger(estado.ano)) filtros.ano = estado.ano
-  if (Number.isInteger(estado.anoDe)) filtros.ano_de = estado.anoDe
-  if (Number.isInteger(estado.anoAte)) filtros.ano_ate = estado.anoAte
+
+  const ano = anoValido(estado.ano)
+  const anoDe = anoValido(estado.anoDe)
+  const anoAte = anoValido(estado.anoAte)
+  if (ano != null) filtros.ano = ano
+  if (anoDe != null) filtros.ano_de = anoDe
+  if (anoAte != null) filtros.ano_ate = anoAte
+
   if (estado.temPrint != null) filtros.tem_print = estado.temPrint
 
-  for (const [campo, chave] of Object.entries(LISTAS)) {
+  for (const [campo, chave] of Object.entries(LISTAS_TEXTO)) {
     const lista = semNulos(estado[campo])
+    if (lista.length) filtros[chave] = lista
+  }
+  for (const [campo, chave] of Object.entries(LISTAS_ID)) {
+    const lista = idsValidos(estado[campo])
     if (lista.length) filtros[chave] = lista
   }
 
   // Estado da UI: operador fora de =/>=/ausente e bug do chamador — falha
   // cedo, em vez de virar ">=" em silencio.
-  const notas = estado.notas ?? []
+  const notas = (estado.notas ?? []).map(coagirCondicao)
   notas.forEach(validarOperador)
 
   // Percentual e TRI sao familias separadas: TRI nunca vira percentual, e
@@ -106,13 +125,22 @@ export function filtrosParaUrl(estado) {
   const params = new URLSearchParams()
   if (estado.aba && estado.aba !== 'TODOS') params.set('aba', estado.aba)
   if (estado.texto?.trim()) params.set('q', estado.texto.trim())
-  if (Number.isInteger(estado.ano)) params.set('ano', String(estado.ano))
-  if (Number.isInteger(estado.anoDe)) params.set('ano_de', String(estado.anoDe))
-  if (Number.isInteger(estado.anoAte)) params.set('ano_ate', String(estado.anoAte))
+
+  const ano = anoValido(estado.ano)
+  const anoDe = anoValido(estado.anoDe)
+  const anoAte = anoValido(estado.anoAte)
+  if (ano != null) params.set('ano', String(ano))
+  if (anoDe != null) params.set('ano_de', String(anoDe))
+  if (anoAte != null) params.set('ano_ate', String(anoAte))
+
   if (estado.temPrint != null) params.set('print', String(estado.temPrint))
 
-  for (const campo of Object.keys(LISTAS)) {
+  for (const campo of Object.keys(LISTAS_TEXTO)) {
     const lista = semNulos(estado[campo])
+    if (lista.length) params.set(campo, lista.join(','))
+  }
+  for (const campo of Object.keys(LISTAS_ID)) {
+    const lista = idsValidos(estado[campo])
     if (lista.length) params.set(campo, lista.join(','))
   }
 
@@ -134,77 +162,23 @@ export function filtrosParaUrl(estado) {
   return params.toString()
 }
 
-// Numeros vindos de uma URL podem ter sido editados a mao: pedaco vazio,
-// texto onde deveria ser numero etc. Tratamos como ausente em vez de
-// derrubar a busca.
-function numerosLimpos(valor) {
-  if (!valor) return []
-  return valor
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item !== '')
-    .map(Number)
-    .filter((n) => Number.isFinite(n))
-}
-
-function textosLimpos(valor) {
-  if (!valor) return []
-  return valor
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item !== '')
-}
-
-function inteiroOuNulo(valor) {
-  if (valor == null || valor.trim() === '') return null
-  const numero = Number(valor)
-  return Number.isInteger(numero) ? numero : null
-}
-
-// Number('') e Number('  ') sao 0, nao NaN — pedaco vazio ou so espaco
-// (`notas=:900:TRI`) nao pode virar materia_id/minimo 0.
-function paraNumero(valor) {
-  if (valor == null || valor.trim() === '') return NaN
-  return Number(valor)
-}
-
-function analisarNotas(valor) {
-  if (!valor) return []
-  return valor
-    .split(',')
-    .map((item) => {
-      const [materiaIdStr, minimoStr, familia, operador] = item.split(':')
-      const condicao = {
-        materia_id: paraNumero(materiaIdStr),
-        minimo: paraNumero(minimoStr),
-        familia,
-      }
-      // URL editada a mao: 4o segmento desconhecido e descartado (condicao
-      // continua valendo, so sem operador) — nunca lanca, diferente de
-      // montarFiltros.
-      if (OPERADORES_VALIDOS.has(operador)) condicao.operador = operador
-      return condicao
-    })
-    .filter(condicaoValida)
-}
-
 export function urlParaFiltros(texto) {
   const params = new URLSearchParams(texto)
 
   return {
-    ...ESTADO_VAZIO,
+    ...estadoVazio(),
     aba: params.get('aba') ?? 'TODOS',
     texto: (params.get('q') ?? '').trim(),
     tipos: textosLimpos(params.get('tipos')),
     canais: textosLimpos(params.get('canais')),
     status: textosLimpos(params.get('status')),
-    instituicoes: numerosLimpos(params.get('instituicoes')),
-    provas: numerosLimpos(params.get('provas')),
-    cursos: numerosLimpos(params.get('cursos')),
-    ano: inteiroOuNulo(params.get('ano')),
-    anoDe: inteiroOuNulo(params.get('ano_de')),
-    anoAte: inteiroOuNulo(params.get('ano_ate')),
-    temPrint: params.get('print') ? params.get('print') === 'true' : null,
+    instituicoes: idsLimpos(params.get('instituicoes')),
+    provas: idsLimpos(params.get('provas')),
+    cursos: idsLimpos(params.get('cursos')),
+    ano: anoValido(params.get('ano')),
+    anoDe: anoValido(params.get('ano_de')),
+    anoAte: anoValido(params.get('ano_ate')),
+    temPrint: temPrintOuNulo(params.get('print')),
     notas: analisarNotas(params.get('notas')),
   }
 }
