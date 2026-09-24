@@ -1945,6 +1945,12 @@ git commit -m "feat(lib): montagem de filtros e serializacao na URL"
 >
 > **Migrações append-only.** A partir do `db push` deste Step 5, as migrações do projeto são append-only (mesma convenção das emendas M3-G nas Tasks 17, 19, 21 e 23): nada de editar uma migração já aplicada, só criar a próxima.
 
+> **Emenda da revisão conjunta (Tasks 15/16/18 + M3-G, 2026-09-24).** O exemplo do Step 4 trazia
+> o e-mail real do Bernardo — trocado pelo placeholder `'nome.sobrenome@universonarrado.com'`
+> (invariante "nenhum e-mail real da equipe no repositório"; o e-mail antigo continua no histórico
+> do git). O Step 5 ganhou as consultas prontas para conferir, no hospedado, que `anon` não tem
+> privilégio em `public` e o que o `pg_default_acl` concede.
+
 **Files:** nenhum.
 
 **Interfaces:**
@@ -1980,11 +1986,11 @@ No painel do Supabase, **Authentication → Providers → Google**: habilitar, c
 
 ```sql
 insert into membro_equipe (email, nome, ativo) values
-  ('bernardo.costa@universonarrado.com', 'Bernardo', true);
+  ('nome.sobrenome@universonarrado.com', 'Nome', true);
 -- repetir para cada pessoa da equipe
 ```
 
-E-mails em minúsculas — há um `CHECK` que exige isso.
+E-mails em minúsculas — há um `CHECK` que exige isso. O e-mail acima é um **placeholder**: os e-mails reais da equipe são digitados só no SQL Editor do projeto hospedado, nunca no repositório (invariante "nenhum dado real no repositório").
 
 - [ ] **Step 5: Aplicar as migrações em produção**
 
@@ -1992,6 +1998,49 @@ E-mails em minúsculas — há um `CHECK` que exige isso.
 npx supabase link --project-ref <ref-do-projeto>
 npx supabase db push
 ```
+
+Depois do `db push`, conferir no **SQL Editor** do hospedado que `anon` não tem privilégio em
+`public` e o que os default privileges concedem:
+
+```sql
+-- 1) Privilégios de anon em tabelas/views de public. Esperado: nenhuma linha.
+select table_name, privilege_type
+  from information_schema.role_table_grants
+ where table_schema = 'public' and grantee = 'anon'
+ order by 1, 2;
+
+-- 1b) Mesma pergunta direto no catálogo (não depende de quem roda a consulta
+-- ser membro de anon, como o information_schema). Esperado: nenhuma linha.
+select c.relname as objeto, c.relkind as tipo, a.privilege_type
+  from pg_class c
+  cross join lateral aclexplode(c.relacl) a
+ where c.relnamespace = 'public'::regnamespace
+   and a.grantee = 'anon'::regrole
+ order by 1, 3;
+
+-- 2) O que os default privileges concedem em public (e os globais,
+-- defaclnamespace = 0). tipo: r = tabela, S = sequence, f = função, T = tipo.
+-- Esperado: nenhuma linha com grantee anon.
+select pg_get_userbyid(d.defaclrole) as dono,
+       case when d.defaclnamespace = 0 then '(global)'
+            else d.defaclnamespace::regnamespace::text end as esquema,
+       d.defaclobjtype as tipo,
+       case when a.grantee = 0 then 'PUBLIC'
+            else pg_get_userbyid(a.grantee) end as grantee,
+       a.privilege_type
+  from pg_default_acl d
+  cross join lateral aclexplode(d.defaclacl) a
+ where d.defaclnamespace in (0, 'public'::regnamespace)
+ order by 1, 2, 3, 4, 5;
+```
+
+Esperado: as consultas 1 e 1b sem nenhuma linha. Na 2, nenhuma linha de dono `postgres` com
+grantee `anon`, `authenticated`, `service_role` ou `PUBLIC` — as migrações rodam como `postgres`, e
+a `0011_privilegios.sql` zerou esses padrões (as linhas de dono `postgres` com grantee `postgres`
+são normais). Linhas de dono `supabase_admin` só valem para objetos que o próprio `supabase_admin`
+criar, não para as tabelas do app; o Supabase local tem uma que concede tudo a `anon` — anotar o
+que aparecer no hospedado. Qualquer linha fora do esperado: parar e revisar antes de seguir para o
+Step 4.
 
 - [ ] **Step 6: Cadastrar os Secrets no GitHub**
 
