@@ -2543,6 +2543,73 @@ git commit -m "feat: cadastros de referencia com mesclagem de instituicoes"
 
 ### Task 18: Validação da ficha
 
+> **Emenda pós-aprovação (Marco 2, 2026-09-24).** A revisão do Marco 2 pediu que
+> `validarDepoimento` espelhe, para nota, as regras que o banco já aplica
+> (`ck_nota_nao_negativa`, `ck_percentual_ate_100`, `ck_pontos_exige_maximo`,
+> `ck_pontos_ate_maximo`, `ck_tri_faixa` — `supabase/migrations/0007_participacao.sql`), para a
+> pessoa ver todas as causas de uma vez na ficha, em vez de um erro cru de constraint depois de
+> salvar. **O banco continua a fonte da verdade — a validação da lib é conveniência, nunca
+> substituição.** Acréscimos ao laço de notas do Step 3 abaixo:
+>
+> ```js
+>     for (const nota of participacao.notas ?? []) {
+>       if (!nota.materia_id) erros.push('Toda nota precisa de matéria.')
+>       if (nota.valor_original == null) {
+>         erros.push('Toda nota precisa de um valor.')
+>       } else if (nota.valor_original < 0) {
+>         erros.push('O valor da nota não pode ser negativo.')
+>       }
+>       if (nota.escala === 'PERCENTUAL' && nota.valor_original > 100) {
+>         erros.push('Nota em percentual não pode passar de 100.')
+>       }
+>       if (nota.escala === 'PONTOS') {
+>         if (!(nota.valor_maximo > 0)) {
+>           erros.push('Nota em pontos precisa do valor máximo.')
+>         } else if (nota.valor_original > nota.valor_maximo) {
+>           erros.push('Nota em pontos não pode passar do valor máximo.')
+>         }
+>       }
+>       if (nota.escala === 'TRI' && (nota.valor_original < 0 || nota.valor_original > 1000)) {
+>         erros.push('Nota do TRI precisa estar entre 0 e 1000.')
+>       }
+>     }
+> ```
+>
+> E os casos correspondentes, acrescentados ao Step 1 (`testes/lib/validacao.test.js`):
+>
+> ```js
+>   it('nota sem valor e erro', () => {
+>     const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: 2025,
+>       notas: [{ materia_id: 1, escala: 'PERCENTUAL' }], resultados: [] }] }
+>     expect(validarDepoimento(ficha)).toContain('Toda nota precisa de um valor.')
+>   })
+>
+>   it('nota negativa e erro', () => {
+>     const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: 2025,
+>       notas: [{ materia_id: 1, valor_original: -1, escala: 'PERCENTUAL' }], resultados: [] }] }
+>     expect(validarDepoimento(ficha)).toContain('O valor da nota não pode ser negativo.')
+>   })
+>
+>   it('percentual acima de 100 e erro', () => {
+>     const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: 2025,
+>       notas: [{ materia_id: 1, valor_original: 101, escala: 'PERCENTUAL' }], resultados: [] }] }
+>     expect(validarDepoimento(ficha)).toContain('Nota em percentual não pode passar de 100.')
+>   })
+>
+>   it('pontos acima do maximo e erro', () => {
+>     const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: 2025,
+>       notas: [{ materia_id: 1, valor_original: 21, valor_maximo: 20, escala: 'PONTOS' }],
+>       resultados: [] }] }
+>     expect(validarDepoimento(ficha)).toContain('Nota em pontos não pode passar do valor máximo.')
+>   })
+>
+>   it('tri fora da faixa 0-1000 e erro', () => {
+>     const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: 2025,
+>       notas: [{ materia_id: 1, valor_original: 1001, escala: 'TRI' }], resultados: [] }] }
+>     expect(validarDepoimento(ficha)).toContain('Nota do TRI precisa estar entre 0 e 1000.')
+>   })
+> ```
+
 **Files:**
 - Create: `src/lib/validacao.js`, `testes/lib/validacao.test.js`
 
@@ -2693,6 +2760,158 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 > tabela com nome único é sempre upsert idempotente. No Step 1 abaixo, `prova 'ENEM'`,
 > `materia 'Fisica'`, `instituicao 'UFMG'` (primeiro teste) e `prova 'Fuvest'` (segundo
 > teste) viram upsert em `(nome)`/`(nome_canonico)`.
+
+> **Terceira emenda (Marco 2, 2026-09-24).** Revisão do Marco 2 encontrou três problemas no
+> Step 1 (teste) e no Step 3 (SQL) abaixo:
+> 1. **`count(*) from depoimento` global é instável com arquivos rodando em paralelo**
+>    (`vite.config.js` roda os arquivos de teste em paralelo — mesmo problema que a emenda da
+>    Task 8/11/17/19 já resolveu em outros lugares com fixture de marcador único). O teste "nada é
+>    gravado se uma parte viola regra" no Step 1 abaixo compara `antes`/`depois` do total da
+>    tabela inteira: outro arquivo inserindo um depoimento entre as duas contagens derruba o teste
+>    por um motivo que não é o que ele afirma testar. Trocado por contar só as linhas cujo
+>    `texto_completo` contém o marcador do próprio teste — nenhuma linha deveria bater antes (o
+>    marcador é novo) nem depois (a transação foi desfeita), então a contagem certa nos dois casos
+>    é sempre `0`, sem precisar do "antes":
+>    ```js
+>      it('nada e gravado se uma parte viola regra', async () => {
+>        const MARCADOR = 'MARCADORSALVARROLLBACK'
+>        const c = await conectar()
+>        const prova = (await c.query(
+>          `insert into prova (nome) values ('Fuvest')
+>           on conflict (nome) do update set nome = excluded.nome
+>           returning id`)).rows[0].id
+>        await c.end()
+>
+>        await expect(salvar({
+>          texto_completo: `Texto valido ${MARCADOR}`,
+>          fonte: 'MANUAL',
+>          participacoes: [{ prova_id: prova, ano: 2025, notas: [],
+>            resultados: [{ situacao: 'APROVADO', instituicao_id: null }] }],
+>        })).rejects.toThrow()
+>
+>        const c2 = await conectar()
+>        const depois = Number((await c2.query(
+>          `select count(*)::int n from depoimento where texto_completo like $1`,
+>          [`%${MARCADOR}%`])).rows[0].n)
+>        await c2.end()
+>        expect(depois).toBe(0)
+>      })
+>    ```
+> 2. **`salvar_depoimento` não tem `set search_path = ''` nem tabelas qualificadas por
+>    `public.`**, inconsistente com a convenção registrada na emenda da Task 11
+>    (`eh_membro_equipe()`, `tocar_atualizado_em()`, `buscar_depoimentos()`). Corrigido no Step 3.
+> 3. **`atualizado_em = now()` no `update` do Step 3 disputa com o trigger** `trg_tocar_atualizado_em`
+>    (Task 6, `supabase/migrations/0006_nucleo.sql`), que já toca `atualizado_em` em todo `UPDATE`
+>    de `depoimento` — a linha é redundante e, se algum dia o trigger mudar de critério (ex.: só
+>    tocar quando um campo específico muda), as duas fontes divergem em silêncio. Removida; o
+>    trigger é a única fonte. Pelo mesmo motivo, **`print_path`, `link_original` e `link_post`
+>    passam a gravar com `nullif(btrim(p_ficha->>'campo'), '')`** — sem isso, uma ficha que manda
+>    string vazia (campo limpo no formulário, não omitido) grava `''` em vez de `null`, e
+>    `d.print_path is not null` (filtro `tem_print` de `buscar_depoimentos`, Task 11) contaria
+>    "tem print" para um depoimento sem print de verdade.
+>
+> Trecho corrigido do Step 3 (cabeçalho e as três colunas afetadas — o resto do corpo da função
+> não muda):
+> ```sql
+> create or replace function public.salvar_depoimento(p_ficha jsonb)
+> returns bigint
+> language plpgsql
+> set search_path = ''
+> as $$
+> declare
+>   v_id   bigint := (p_ficha->>'id')::bigint;
+>   v_part jsonb;
+>   v_pid  bigint;
+>   v_item jsonb;
+> begin
+>   if v_id is null then
+>     insert into public.depoimento (
+>       texto_completo, resumo_curto, autor_bruto, autor_contato_bruto, fonte,
+>       link_original, data_depoimento, print_path, aluno_id,
+>       autorizacao_publicacao, status_uso, data_postagem, link_post,
+>       motivo_descarte, observacao_descarte)
+>     values (
+>       p_ficha->>'texto_completo', p_ficha->>'resumo_curto',
+>       p_ficha->>'autor_bruto', p_ficha->>'autor_contato_bruto',
+>       (p_ficha->>'fonte')::fonte_depoimento,
+>       nullif(btrim(p_ficha->>'link_original'), ''), (p_ficha->>'data_depoimento')::date,
+>       nullif(btrim(p_ficha->>'print_path'), ''), (p_ficha->>'aluno_id')::bigint,
+>       coalesce((p_ficha->>'autorizacao_publicacao')::autorizacao_publicacao,
+>                'NAO_INFORMADO'),
+>       coalesce((p_ficha->>'status_uso')::status_uso, 'DISPONIVEL'),
+>       (p_ficha->>'data_postagem')::date, nullif(btrim(p_ficha->>'link_post'), ''),
+>       (p_ficha->>'motivo_descarte')::motivo_descarte,
+>       p_ficha->>'observacao_descarte')
+>     returning id into v_id;
+>   else
+>     update public.depoimento set
+>       texto_completo = p_ficha->>'texto_completo',
+>       resumo_curto = p_ficha->>'resumo_curto',
+>       autor_bruto = p_ficha->>'autor_bruto',
+>       autor_contato_bruto = p_ficha->>'autor_contato_bruto',
+>       fonte = (p_ficha->>'fonte')::fonte_depoimento,
+>       link_original = nullif(btrim(p_ficha->>'link_original'), ''),
+>       data_depoimento = (p_ficha->>'data_depoimento')::date,
+>       print_path = nullif(btrim(p_ficha->>'print_path'), ''),
+>       aluno_id = (p_ficha->>'aluno_id')::bigint,
+>       autorizacao_publicacao = (p_ficha->>'autorizacao_publicacao')::autorizacao_publicacao,
+>       status_uso = (p_ficha->>'status_uso')::status_uso,
+>       data_postagem = (p_ficha->>'data_postagem')::date,
+>       link_post = nullif(btrim(p_ficha->>'link_post'), ''),
+>       motivo_descarte = (p_ficha->>'motivo_descarte')::motivo_descarte,
+>       observacao_descarte = p_ficha->>'observacao_descarte'
+>     where id = v_id;
+>   end if;
+>
+>   delete from public.depoimento_tipo  where depoimento_id = v_id;
+>   delete from public.depoimento_canal where depoimento_id = v_id;
+>   delete from public.participacao     where depoimento_id = v_id;
+>
+>   for v_item in select * from jsonb_array_elements(coalesce(p_ficha->'tipos','[]'))
+>   loop
+>     insert into public.depoimento_tipo (depoimento_id, tipo)
+>     values (v_id, (v_item #>> '{}')::tipo_depoimento);
+>   end loop;
+>
+>   for v_item in select * from jsonb_array_elements(coalesce(p_ficha->'canais','[]'))
+>   loop
+>     insert into public.depoimento_canal (depoimento_id, canal)
+>     values (v_id, (v_item #>> '{}')::canal_un);
+>   end loop;
+>
+>   for v_part in select * from jsonb_array_elements(coalesce(p_ficha->'participacoes','[]'))
+>   loop
+>     insert into public.participacao (depoimento_id, prova_id, ano)
+>     values (v_id, (v_part->>'prova_id')::bigint, (v_part->>'ano')::smallint)
+>     returning id into v_pid;
+>
+>     for v_item in select * from jsonb_array_elements(coalesce(v_part->'notas','[]'))
+>     loop
+>       insert into public.nota (participacao_id, materia_id, valor_original, escala, valor_maximo)
+>       values (v_pid, (v_item->>'materia_id')::bigint,
+>               (v_item->>'valor_original')::numeric,
+>               (v_item->>'escala')::escala_nota,
+>               (v_item->>'valor_maximo')::numeric);
+>     end loop;
+>
+>     for v_item in select * from jsonb_array_elements(coalesce(v_part->'resultados','[]'))
+>     loop
+>       insert into public.resultado (participacao_id, instituicao_id, curso_id, situacao)
+>       values (v_pid, (v_item->>'instituicao_id')::bigint,
+>               (v_item->>'curso_id')::bigint,
+>               (v_item->>'situacao')::situacao_resultado);
+>     end loop;
+>   end loop;
+>
+>   return v_id;
+> end $$;
+> ```
+>
+> **`atualizado_em` só avança em `UPDATE` direto de `depoimento`; editar tabela filha sem tocar o
+> pai não o avança.** `salvar_depoimento` sempre atualiza o pai (o `update public.depoimento set
+> ...` acima roda em todo salvamento de ficha existente, mesmo quando só os filhos mudaram de
+> conteúdo), e qualquer caminho futuro que edite só filhos (ex.: uma função que só mexe em
+> `nota`) deve fazer o mesmo, ou `atualizado_em` fica desatualizado em silêncio.
 
 **Files:**
 - Create: `src/dados/depoimentos.js`, `supabase/migrations/0012_salvar_depoimento.sql`, `testes/rls/salvar.test.js`
