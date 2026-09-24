@@ -50,6 +50,10 @@ describe('arquivos rastreados nao tem BOM', () => {
   it('nenhum arquivo textual comeca com EF BB BF', () => {
     const raiz = raizDoRepo()
     const todos = arquivosRastreados(raiz)
+    // Varredura vazia (ex.: git ls-files falhou/retornou nada) não pode
+    // passar em silêncio como se nada tivesse BOM — precisa ter visto algo.
+    expect(todos.length, 'git ls-files nao retornou nenhum arquivo').toBeGreaterThan(0)
+    expect(todos, 'lista de rastreados nao contem package.json').toContain('package.json')
     const binarios = arquivosBinarios(raiz, todos)
     const textuais = todos.filter((arquivo) => !binarios.has(arquivo))
     const comBom = textuais.filter((arquivo) => temBom(path.join(raiz, arquivo)))
