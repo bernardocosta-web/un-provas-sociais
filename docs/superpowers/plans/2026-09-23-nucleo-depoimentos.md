@@ -1363,6 +1363,58 @@ git commit -m "feat(db): buckets prints (privado) e logos (publico) com politica
 > upsert em `(nome)`, também atualizando `instituicao_id = excluded.instituicao_id`
 > — sem isso, uma segunda execução recriaria a prova ligada à instituição errada
 > se `idIta` mudasse entre execuções.
+>
+> **Fix round 1 (2026-09-24).** Revisão pós-implementação de `0010_busca.sql`
+> encontrou: (1) o contrato "ausente ou `null` significa não filtra" não valia
+> para `null` explícito — uma chave escalar (`texto`, `ano`, `tem_print`) com
+> `null` explícito produzia 0 linhas em silêncio, e uma chave de array
+> (`tipos`, `fontes`, `status`, `canais`, `provas`, `instituicoes`, `cursos`,
+> `notas`, `tri`) com `null` explícito derrubava a chamada com
+> `cannot extract elements from a scalar`; (2) lista vazia `[]` também não
+> valia como "não filtra" nas 7 famílias que usam `IN (select
+> jsonb_array_elements_text(...))` (`notas`/`tri` já se comportavam certo por
+> construção do `NOT EXISTS`); (3) `%`, `_` e `\` em `texto` agiam como coringa
+> do `ILIKE` em vez de busca literal; (4) a função não tinha `set search_path
+> = ''` nem tabelas qualificadas por `public.`, inconsistente com
+> `eh_membro_equipe()` e `tocar_atualizado_em()`. Corrigidos normalizando
+> `p_filtros` uma única vez (`jsonb_strip_nulls(coalesce(p_filtros,
+> '{}'::jsonb))`, guardado numa variável `filtros` — a função virou `language
+> plpgsql` por causa disso e do `raise exception` do operador, abaixo),
+> trocando toda guarda de array por `coalesce(jsonb_array_length(filtros->'x'),
+> 0) = 0`, escapando `texto` antes do `ILIKE`, e adicionando `set search_path
+> = ''` com toda tabela qualificada (`public.depoimento`,
+> `public.participacao`, `public.nota`, `public.resultado`,
+> `public.depoimento_tipo`, `public.depoimento_canal`; retorno `setof
+> public.depoimento`).
+>
+> No mesmo round, dois campos novos em `p_filtros` (Task 12 e Task 21
+> consomem — ver bloco JSON abaixo):
+> - cada item de `notas` aceita `"operador": "=" | ">="` (ausente ⇒ `">="`,
+>   igual ao comportamento anterior). Qualquer outro valor derruba a chamada
+>   com `raise exception 'operador invalido: %'` — falha cedo com causa
+>   clara, em vez de tratar silenciosamente como `>=`. `tri` não ganhou
+>   operador — continua sempre `>=`.
+> - `"ano_de"` e `"ano_ate"`: faixa inclusiva, cada lado opcional,
+>   satisfeita por uma única participação (`ano between coalesce(ano_de,
+>   -32768) and coalesce(ano_ate, 32767)` — limites de `smallint`, mesma
+>   coluna e mesma linha de `participacao`, nunca uma participação para cada
+>   lado). `"ano"` (igualdade exata) continua existindo, independente dos
+>   dois.
+>
+> Não foi adicionado filtro de "tem link" — decisão de produto pendente com
+> o dono.
+>
+> **Limites conhecidos para quem monta `p_filtros` (Task 12): a função não
+> tolera forma malformada — elemento `null` dentro de um array, ou item de
+> `notas`/`tri` sem `minimo`, casam com nada (silenciosamente); um escalar no
+> lugar de um array, ou um `ano`/`ano_de`/`ano_ate` que não seja inteiro,
+> derrubam a chamada com erro — a lib em `src/lib` nunca deve montar
+> `p_filtros` assim.**
+>
+> O Step 3 abaixo (SQL original aprovado) **não foi reescrito** — está
+> superado por este fix round. `supabase/migrations/0010_busca.sql` é a
+> fonte da verdade da implementação; ver `testes/rls/busca_fix1.test.js`
+> para os testes de regressão de cada item acima.
 
 **Files:**
 - Create: `supabase/migrations/0010_busca.sql`, `testes/rls/busca.test.js`
@@ -1383,13 +1435,21 @@ Formato de `p_filtros`, usado pela Task 12 e pela interface:
   "provas": [3],
   "cursos": [4],
   "ano": 2025,
-  "notas": [{ "materia_id": 1, "minimo": 100 }],
+  "ano_de": 2024,
+  "ano_ate": 2025,
+  "notas": [{ "materia_id": 1, "minimo": 100, "operador": "=" }],
   "tri": [{ "materia_id": 2, "minimo": 900 }],
   "tem_print": true
 }
 ```
 
-Todo campo é opcional; ausente ou `null` significa "não filtra por isso".
+Todo campo é opcional; ausente ou `null` significa "não filtra por isso";
+lista vazia (`[]`) também significa "não filtra por isso", em toda família
+de filtro. `ano_de`/`ano_ate` combinam entre si (faixa inclusiva, satisfeita
+por uma única participação); `ano` continua sendo igualdade exata,
+independente dos dois. Cada item de `notas` aceita `"operador": "=" | ">="`
+(ausente ⇒ `">="`); `tri` não tem operador, é sempre `>=`. Ver o fix round 1
+acima.
 
 - [ ] **Step 1: Escrever o teste que trava a semântica**
 

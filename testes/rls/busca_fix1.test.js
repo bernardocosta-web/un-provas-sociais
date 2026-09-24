@@ -12,8 +12,9 @@ import { conectar } from './ajuda.js'
 // Fixture propria, marcador unico, para nao colidir com outros arquivos.
 
 const MARCADOR = 'MARCADORFIX1BUSCA'
+const MARCADOR_FAIXA = 'MARCADORFIX1FAIXADOISANOS'
 
-let idDepoimento, idFisica
+let idDepoimento, idFisica, idDepoimentoFaixa
 
 beforeAll(async () => {
   const c = await conectar()
@@ -27,10 +28,12 @@ beforeAll(async () => {
        on conflict (nome) do update set nome = excluded.nome
        returning id`)).rows[0].id
 
+    // Texto com "AXB" (para o teste de "_" nao ser coringa) e uma barra
+    // invertida literal (para o teste de "\" nao ser coringa).
     idDepoimento = (await c.query(
       `insert into depoimento (texto_completo, fonte)
        values ($1, 'MANUAL') returning id`,
-      [`Depoimento ${MARCADOR} com nota AXB especial`])).rows[0].id
+      [`Depoimento ${MARCADOR} com nota AXB especial, caminho C:\\prova`])).rows[0].id
 
     const p = (await c.query(
       `insert into participacao (depoimento_id, prova_id, ano)
@@ -38,6 +41,21 @@ beforeAll(async () => {
     await c.query(
       `insert into nota (participacao_id, materia_id, valor_original, escala)
        values ($1, $2, 100, 'PERCENTUAL')`, [p, idFisica])
+
+    // Depoimento separado com DUAS participacoes, uma de cada lado de uma
+    // faixa 2024..2025: prova de que ano_de/ano_ate tem de ser satisfeito
+    // por UMA UNICA participacao, nao por duas participacoes diferentes
+    // cobrindo os dois lados da faixa.
+    idDepoimentoFaixa = (await c.query(
+      `insert into depoimento (texto_completo, fonte)
+       values ($1, 'MANUAL') returning id`,
+      [`Depoimento ${MARCADOR_FAIXA} com participacoes em 2023 e 2026`])).rows[0].id
+    await c.query(
+      `insert into participacao (depoimento_id, prova_id, ano)
+       values ($1, $2, 2023)`, [idDepoimentoFaixa, enem])
+    await c.query(
+      `insert into participacao (depoimento_id, prova_id, ano)
+       values ($1, $2, 2026)`, [idDepoimentoFaixa, enem])
   } finally {
     await c.end()
   }
@@ -105,6 +123,10 @@ describe('texto e busca literal, nao padrao ILIKE', () => {
   it('_ nao age como coringa: "A_B" nao bate em "AXB"', async () => {
     expect(await buscar({ texto: 'A_B' })).not.toContain(Number(idDepoimento))
   })
+
+  it('\\ literal no texto e tratado como caractere, nao como escape do ILIKE', async () => {
+    expect(await buscar({ texto: 'C:\\prova' })).toContain(Number(idDepoimento))
+  })
 })
 
 describe('funcao roda com search_path vazio', () => {
@@ -115,7 +137,7 @@ describe('funcao roda com search_path vazio', () => {
         select proconfig from pg_proc
         where proname = 'buscar_depoimentos' and pronamespace = 'public'::regnamespace
       `)
-      expect(rows[0].proconfig.some((c) => c.startsWith('search_path='))).toBe(true)
+      expect(rows[0].proconfig).toContain('search_path=""')
     } finally { await c.end() }
   })
 })
@@ -158,5 +180,14 @@ describe('faixa de ano (ano_de / ano_ate, inclusiva)', () => {
 
   it('so ano_ate, nao satisfeito, nao encontra', async () => {
     expect(await buscar({ ano_ate: 2024 })).not.toContain(Number(idDepoimento))
+  })
+
+  it('a faixa tem de ser satisfeita por UMA participacao, nao por duas diferentes', async () => {
+    // idDepoimentoFaixa tem participacoes em 2023 e 2026: nenhuma das duas,
+    // sozinha, cai em 2024..2025. Uma implementacao que checasse ano_de e
+    // ano_ate em EXISTS separados (em vez de um so, sobre a mesma linha de
+    // participacao) encontraria por engano, combinando as duas.
+    expect(await buscar({ ano_de: 2024, ano_ate: 2025 }))
+      .not.toContain(Number(idDepoimentoFaixa))
   })
 })
