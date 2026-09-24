@@ -42,3 +42,4 @@ back-end próprio. Vite + Vue 3. Vitest. Interface e documentação em pt-BR.
 
 Brainstorm → plano → TDD → commit pequeno. Decisões de arquitetura viram ADR em
 `docs/decisions/`. Instruções diretas do Bernardo têm precedência sobre skills.
+Arquivos em UTF-8 sem BOM; `testes/repo/sem_bom.test.js` reprova quem tiver.
