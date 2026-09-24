@@ -18,6 +18,8 @@ as $$
 declare
   v_nome_perdedor text;
   v_logo_perdedor text;
+  v_apelido_conflito text;
+  v_dono_conflito text;
 begin
   if p_vencedor = p_perdedor then
     raise exception 'nao da para mesclar uma instituicao com ela mesma';
@@ -31,6 +33,34 @@ begin
     from public.instituicao where id = p_perdedor;
   if v_nome_perdedor is null then
     raise exception 'instituicao perdedora % nao existe', p_perdedor;
+  end if;
+
+  -- Confere ANTES de mover: nenhum apelido da perdedora, nem o proprio nome
+  -- dela (que vira apelido da vencedora logo abaixo), pode pertencer hoje a
+  -- uma TERCEIRA instituicao (diferente da vencedora e da perdedora). Sem
+  -- esta checagem, o "on conflict (apelido) do nothing" mais abaixo descarta
+  -- o nome em silencio quando ele ja e apelido de outra instituicao T — a
+  -- vencedora fica sem ele e buscas por esse nome caem em T. Quando quem ja
+  -- tem o apelido e a propria vencedora, isso NAO e conflito (caso
+  -- idempotente): o "do nothing" continua valendo so para esse caso.
+  select ia.apelido, i.nome_canonico into v_apelido_conflito, v_dono_conflito
+    from public.instituicao_apelido ia
+    join public.instituicao i on i.id = ia.instituicao_id
+   where ia.apelido in (
+           select apelido from public.instituicao_apelido where instituicao_id = p_perdedor
+           union
+           select v_nome_perdedor
+         )
+     and ia.instituicao_id not in (p_vencedor, p_perdedor)
+   limit 1;
+
+  -- Codigo proprio (nao 23505/unique_violation): esta excecao ja chega em
+  -- pt-BR pronta para a tela (src/lib/erros.js so traduz codigos do
+  -- Postgres; sem mapeamento para P0001, a mensagem original passa direto —
+  -- ver item 2 da revisao do Marco 3 e testes/lib/erros.test.js).
+  if v_apelido_conflito is not null then
+    raise exception 'nao da para mesclar: o apelido "%" ja pertence a "%"',
+      v_apelido_conflito, v_dono_conflito;
   end if;
 
   update public.resultado set instituicao_id = p_vencedor where instituicao_id = p_perdedor;
