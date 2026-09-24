@@ -20,7 +20,7 @@ const FUNCOES_DO_APP = ['buscar_depoimentos(p_filtros jsonb)', 'eh_membro_equipe
   'mesclar_instituicoes(p_vencedor bigint, p_perdedor bigint)',
   'remover_cadastro_simples(p_tabela text, p_id bigint)',
   'remover_instituicao(p_id bigint)',
-  'salvar_instituicao(p_dados jsonb)']
+  'salvar_depoimento(p_ficha jsonb)', 'salvar_instituicao(p_dados jsonb)']
 
 async function consultar(sql, params) {
   const c = await conectar()

@@ -52,6 +52,59 @@ describe('mensagemDeErro', () => {
     })).toBe('Preencha o nome.')
   })
 
+  // 23514 e traduzido pelo NOME da constraint, que o Postgres poe na
+  // mensagem. salvar_depoimento (0015) e o primeiro caminho em que checks
+  // que nao sao de nome chegam a tela; os textos batem com os de
+  // validacao.js, para a pessoa ler a mesma coisa venha o erro de onde vier.
+  describe('violacao de check (23514) pelo nome da constraint', () => {
+    const erroDeCheck = (tabela, constraint) => ({
+      code: '23514',
+      message: `new row for relation "${tabela}" violates check constraint "${constraint}"`,
+    })
+
+    it.each([
+      ['instituicao', 'ck_instituicao_nome'],
+      ['instituicao_apelido', 'ck_apelido'],
+      ['prova', 'ck_prova_nome'],
+      ['curso', 'ck_curso_nome'],
+      ['materia', 'ck_materia_nome'],
+      ['aluno', 'ck_aluno_nome'],
+    ])('%s / %s: Preencha o nome.', (tabela, constraint) => {
+      expect(mensagemDeErro(erroDeCheck(tabela, constraint))).toBe('Preencha o nome.')
+    })
+
+    it.each([
+      ['depoimento', 'ck_texto_nao_vazio', 'O texto completo é obrigatório.'],
+      ['depoimento', 'ck_descarte_motivo',
+        'Depoimento descartado precisa de motivo, e motivo de descarte só vale para depoimento descartado.'],
+      ['depoimento', 'ck_descarte_observacao',
+        'Observação de descarte só vale para depoimento descartado.'],
+      ['depoimento', 'ck_motivo_outro', 'Motivo "outro" precisa de observação.'],
+      ['depoimento', 'ck_postado_data', 'Depoimento postado precisa da data da postagem.'],
+      ['depoimento', 'ck_autorizacao',
+        'Depoimento sem autorização só pode ficar descartado por falta de autorização.'],
+      ['participacao', 'ck_ano', 'O ano da participação precisa estar entre 1990 e 2100.'],
+      ['nota', 'ck_pontos_exige_maximo', 'Nota em pontos precisa do valor máximo.'],
+      ['nota', 'ck_nota_nao_negativa', 'O valor da nota não pode ser negativo.'],
+      ['nota', 'ck_percentual_ate_100', 'Nota em percentual não pode passar de 100.'],
+      ['nota', 'ck_pontos_ate_maximo', 'Nota em pontos não pode passar do valor máximo.'],
+      ['nota', 'ck_tri_faixa', 'Nota do TRI precisa estar entre 0 e 1000.'],
+      ['resultado', 'ck_aprovado_exige_instituicao', 'Resultado aprovado precisa de instituição.'],
+    ])('%s / %s', (tabela, constraint, esperado) => {
+      expect(mensagemDeErro(erroDeCheck(tabela, constraint))).toBe(esperado)
+    })
+
+    it('constraint sem traducao cai na mensagem generica', () => {
+      expect(mensagemDeErro(erroDeCheck('membro_equipe', 'ck_email')))
+        .toBe('Algum dado não obedece às regras do cadastro.')
+    })
+
+    it('23514 sem nome de constraint na mensagem cai na mensagem generica', () => {
+      expect(mensagemDeErro({ code: '23514' }))
+        .toBe('Algum dado não obedece às regras do cadastro.')
+    })
+  })
+
   it('traduz campo obrigatorio em branco (23502) para pt-BR', () => {
     expect(mensagemDeErro({
       code: '23502',

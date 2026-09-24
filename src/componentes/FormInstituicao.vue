@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { comprimir } from '../lib/imagem.js'
-import { mensagemDeErro } from '../lib/erros.js'
+import { mensagemDeErro, MENSAGEM_NOME_EM_BRANCO } from '../lib/erros.js'
 import { salvarInstituicao, enviarLogo, removerLogo, urlDaLogo } from '../dados/referencia.js'
 
 const props = defineProps({
@@ -45,7 +45,7 @@ async function salvar() {
   if (!nomeAparado) {
     // Mesma mensagem pt-BR do check ck_instituicao_nome (src/lib/erros.js),
     // sem precisar de uma viagem ao banco para o nome vazio ser recusado.
-    erro.value = mensagemDeErro({ code: '23514' })
+    erro.value = MENSAGEM_NOME_EM_BRANCO
     return
   }
   salvando.value = true
