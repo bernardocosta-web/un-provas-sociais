@@ -167,3 +167,66 @@ describe('urlParaFiltros: entrada mal-formada (URL editada a mao)', () => {
     expect(urlParaFiltros('q=%20%20%20').texto).toBe('')
   })
 })
+
+// --- Fix round 1 (2026-09-24): segmento vazio em nota, operador invalido ---
+
+describe('urlParaFiltros: segmento vazio em nota vira NaN, nao zero', () => {
+  it('materia_id vazio descarta a condicao (nao vira 0)', () => {
+    expect(urlParaFiltros('notas=:900:TRI').notas).toEqual([])
+  })
+
+  it('minimo vazio descarta a condicao (nao vira 0)', () => {
+    expect(urlParaFiltros('notas=1::PERCENTUAL').notas).toEqual([])
+  })
+
+  it('materia_id so com espaco descarta a condicao', () => {
+    expect(urlParaFiltros('notas= :90').notas).toEqual([])
+  })
+})
+
+describe('filtrosParaUrl: nao serializa condicao invalida', () => {
+  it('estado com materia_id invalido nao gera parametro notas', () => {
+    const estado = { ...ESTADO_VAZIO, notas: [{ materia_id: NaN, minimo: 90, familia: 'PERCENTUAL' }] }
+    expect(filtrosParaUrl(estado)).toBe('')
+  })
+
+  it('mistura de condicao valida e invalida so serializa a valida', () => {
+    const estado = {
+      ...ESTADO_VAZIO,
+      notas: [
+        { materia_id: 1, minimo: 90, familia: 'PERCENTUAL' },
+        { materia_id: undefined, minimo: 900, familia: 'TRI' },
+      ],
+    }
+    const params = new URLSearchParams(filtrosParaUrl(estado))
+    expect(params.get('notas')).toBe('1:90:PERCENTUAL')
+  })
+})
+
+describe('montarFiltros: operador invalido no estado e bug do chamador', () => {
+  it('lanca erro com a causa quando operador nao e "=", ">=", nulo ou ausente', () => {
+    const estado = { ...ESTADO_VAZIO, notas: [{ materia_id: 1, minimo: 90, familia: 'PERCENTUAL', operador: '!=' }] }
+    expect(() => montarFiltros(estado)).toThrow(/operador invalido/)
+  })
+
+  it('operador undefined, null, "=" e ">=" nao lancam', () => {
+    for (const operador of [undefined, null, '=', '>=']) {
+      const estado = { ...ESTADO_VAZIO, notas: [{ materia_id: 1, minimo: 90, familia: 'PERCENTUAL', operador }] }
+      expect(() => montarFiltros(estado)).not.toThrow()
+    }
+  })
+})
+
+describe('urlParaFiltros: 4o segmento desconhecido e descartado, nao rejeitado', () => {
+  it('operador invalido na URL editada a mao descarta so o operador, mantem a condicao', () => {
+    const estado = urlParaFiltros('notas=1:90:PERCENTUAL:diferente')
+    expect(estado.notas).toEqual([{ materia_id: 1, minimo: 90, familia: 'PERCENTUAL' }])
+  })
+})
+
+describe('texto com caracteres especiais preserva ida e volta', () => {
+  it('virgula, dois-pontos e "&" sobrevivem ao round-trip', () => {
+    const estado = { ...ESTADO_VAZIO, texto: 'a,b:c&d' }
+    expect(urlParaFiltros(filtrosParaUrl(estado))).toEqual(estado)
+  })
+})

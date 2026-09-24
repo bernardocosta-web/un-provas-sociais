@@ -46,6 +46,18 @@ function condicaoValida(nota) {
   return Number.isFinite(nota.materia_id) && Number.isFinite(nota.minimo)
 }
 
+// Origem confiavel (estado da UI, em montarFiltros) e origem nao confiavel
+// (URL editada a mao, em urlParaFiltros) tratam operador invalido de jeito
+// diferente — ver as duas funcoes abaixo.
+const OPERADORES_VALIDOS = new Set(['=', '>='])
+
+function validarOperador(nota) {
+  const { operador } = nota
+  if (operador != null && !OPERADORES_VALIDOS.has(operador)) {
+    throw new Error(`operador invalido: ${operador}`)
+  }
+}
+
 export function montarFiltros(estado) {
   const filtros = {}
 
@@ -61,9 +73,14 @@ export function montarFiltros(estado) {
     if (lista.length) filtros[chave] = lista
   }
 
+  // Estado da UI: operador fora de =/>=/ausente e bug do chamador — falha
+  // cedo, em vez de virar ">=" em silencio.
+  const notas = estado.notas ?? []
+  notas.forEach(validarOperador)
+
   // Percentual e TRI sao familias separadas: TRI nunca vira percentual, e
   // misturar as duas num filtro so produziria resultado errado em silencio.
-  const notasValidas = (estado.notas ?? []).filter(condicaoValida)
+  const notasValidas = notas.filter(condicaoValida)
   const percentual = notasValidas.filter((n) => n.familia !== 'TRI')
   const tri = notasValidas.filter((n) => n.familia === 'TRI')
 
@@ -99,10 +116,12 @@ export function filtrosParaUrl(estado) {
     if (lista.length) params.set(campo, lista.join(','))
   }
 
-  if (estado.notas?.length) {
+  // Mesma guarda de montarFiltros: condicao invalida nao vira URL.
+  const notasValidas = (estado.notas ?? []).filter(condicaoValida)
+  if (notasValidas.length) {
     params.set(
       'notas',
-      estado.notas
+      notasValidas
         .map((n) => {
           const partes = [n.materia_id, n.minimo, n.familia ?? 'PERCENTUAL']
           if (n.operador) partes.push(n.operador)
@@ -142,6 +161,13 @@ function inteiroOuNulo(valor) {
   return Number.isInteger(numero) ? numero : null
 }
 
+// Number('') e Number('  ') sao 0, nao NaN — pedaco vazio ou so espaco
+// (`notas=:900:TRI`) nao pode virar materia_id/minimo 0.
+function paraNumero(valor) {
+  if (valor == null || valor.trim() === '') return NaN
+  return Number(valor)
+}
+
 function analisarNotas(valor) {
   if (!valor) return []
   return valor
@@ -149,11 +175,14 @@ function analisarNotas(valor) {
     .map((item) => {
       const [materiaIdStr, minimoStr, familia, operador] = item.split(':')
       const condicao = {
-        materia_id: Number(materiaIdStr),
-        minimo: Number(minimoStr),
+        materia_id: paraNumero(materiaIdStr),
+        minimo: paraNumero(minimoStr),
         familia,
       }
-      if (operador) condicao.operador = operador
+      // URL editada a mao: 4o segmento desconhecido e descartado (condicao
+      // continua valendo, so sem operador) — nunca lanca, diferente de
+      // montarFiltros.
+      if (OPERADORES_VALIDOS.has(operador)) condicao.operador = operador
       return condicao
     })
     .filter(condicaoValida)

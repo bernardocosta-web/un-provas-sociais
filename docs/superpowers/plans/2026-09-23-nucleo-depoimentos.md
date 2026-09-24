@@ -1696,6 +1696,28 @@ git commit -m "feat(db): buscar_depoimentos com semantica de nivel de depoimento
 > acima) e os testes de regressão de cada um estão em
 > `testes/lib/filtros.test.js`.
 
+> **Fix round 1 (2026-09-24).** Revisão pós-implementação encontrou dois
+> problemas: (1) `Number('')` e `Number('  ')` são `0`, não `NaN` — um
+> segmento vazio ou só espaço num item de `notas` na URL (`notas=:900:TRI`)
+> virava `materia_id: 0`, que passava pela guarda de "número finito" da
+> montagem defensiva acima. Corrigido tratando segmento vazio/espaço como
+> `NaN` antes de checar validade, tanto na leitura de `notas` da URL quanto
+> — pela mesma guarda — em `filtrosParaUrl`, que agora também descarta
+> condição inválida em vez de serializá-la. (2) Operador desconhecido
+> (fora de `'='`/`'>='`/ausente) era silenciosamente tratado como ausente
+> nas duas funções, escondendo um bug de quem monta o estado. Corrigido
+> com origem definindo o comportamento — a mesma distinção que o resto do
+> arquivo já faz entre estado da UI e URL editada à mão:
+> - `montarFiltros` (estado vem do nosso próprio código): operador
+>   inválido é bug do chamador → lança `Error('operador invalido: ' +
+>   valor)`, falha cedo, mesma filosofia do `raise exception` da função
+>   SQL (Task 11).
+> - `urlParaFiltros` (URL pode ter sido editada à mão, entrada não
+>   confiável): 4º segmento desconhecido é descartado — a condição
+>   continua valendo, só sem `operador` — nunca lança.
+>
+> Testes de regressão de cada item em `testes/lib/filtros.test.js`.
+
 **Files:**
 - Create: `src/lib/filtros.js`, `testes/lib/filtros.test.js`
 
