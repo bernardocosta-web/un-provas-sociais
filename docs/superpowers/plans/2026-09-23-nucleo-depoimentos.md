@@ -2895,6 +2895,40 @@ git commit -m "feat: cadastros de referencia com mesclagem de instituicoes"
 
 ---
 
+### Task 17b: Apelido não pode ser nome de outra instituição
+
+> **Tarefa nova (pedido do Bernardo, 2026-09-24), achada no teste manual do Marco 3**
+> (registro em `.superpowers/sdd/2026-09-23-nucleo-depoimentos/progress.md`, "Incoerencia achada",
+> e brief em `.superpowers/sdd/2026-09-23-nucleo-depoimentos/task-17b-brief.md`): foi possível
+> criar o apelido "TESTE B" na instituição T existindo a instituição "TESTE B". A busca por esse
+> texto fica ambígua (resolve para duas instituições).
+
+**Motivo:** o banco passa a recusar, nos dois sentidos, apelido igual ao `nome_canonico` de
+**outra** instituição e `nome_canonico` igual a apelido de **outra** — e, pela mesma razão,
+apelido repetido em caixa diferente entre instituições e nome canônico repetido em caixa
+diferente. Comparação `lower(btrim(...))`; acento não é normalizado (sem `unaccent`). Apelido
+igual ao nome da própria instituição continua permitido.
+
+**Files:**
+- Create: `supabase/migrations/0013_apelido_vs_nome.sql`, `testes/rls/apelido_vs_nome.test.js`
+- Modify: `testes/lib/erros.test.js` (a mensagem nova passa sem alteração)
+
+**Desenho:** dois constraint triggers `deferrable initially deferred` (em `instituicao`, insert/
+update de `nome_canonico`; em `instituicao_apelido`, insert/update de `apelido`/`instituicao_id`)
+— deferidos porque `mesclar_instituicoes` (0012) insere o nome da perdedora como apelido da
+vencedora antes de apagá-la, na mesma transação. Funções `security definer`, `search_path = ''`,
+sem `EXECUTE` para papéis da API; erro P0001 em pt-BR citando o texto e a instituição dona
+(`src/lib/erros.js` repassa P0001, e a mensagem aparece em `FormInstituicao`). A migração falha
+com a lista de conflitos se já houver dados violando a regra.
+
+**Verificação:** `npx supabase db reset && npm test` verde; `npm test` de novo verde; `npm run build` OK.
+
+**Commit:** `feat(db): apelido nao pode ser nome de outra instituicao`.
+
+**Para o hospedado:** o Bernardo aplica a `0013` (push de migração) depois do merge.
+
+---
+
 # Marco 4 — Ficha do depoimento
 
 **Entrega ao fim do marco:** a equipe cadastra depoimentos completos à mão, com participações, notas, resultados, print e aluno.
@@ -3129,6 +3163,12 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 
 ### Task 19: Gravação do depoimento inteiro
 
+> **Emenda (Task 17b, 2026-09-24).** A `0013` passou a ser `0013_apelido_vs_nome.sql` (Task 17b)
+> e a `0014` fica reservada para a Task 17c. A migração desta tarefa passa a ser
+> **`supabase/migrations/0015_salvar_depoimento.sql`**; todas as menções abaixo já foram trocadas.
+> A regra do "próximo número livre" das Tasks 21 e 23 continua valendo (conferir em
+> `supabase/migrations/` na hora).
+
 > **[Aplicada no Step 4 abaixo — revisão conjunta, 2026-09-24.]** **Emenda pós-aprovação (2026-09-24).** Mesma decisão da emenda da Task 17: o bucket `prints` também não tem política de UPDATE, então `enviarPrint` abaixo muda para `upsert: false`, com o mesmo nome de arquivo único descrito na emenda da Task 17 (`` `${crypto.randomUUID()}.webp` ``). A orquestração da troca (enviar o novo → salvar a referência → só então apagar o antigo; se salvar falhar, apagar o novo em vez do antigo) fica a cargo de quem chama `enviarPrint` — ver a emenda da Task 20, onde essa chamada é combinada com `salvarDepoimento` na tela da ficha.
 >
 > **[Aplicada no Step 1/3 abaixo — revisão conjunta, 2026-09-24.]** **Segunda emenda (2026-09-24), mesma data.** Convenção da emenda da Task 11: fixture de
@@ -3314,7 +3354,7 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 
 > **[Aplicada no Step 3 abaixo e em Files — revisão conjunta, 2026-09-24.]** **Emenda pós-aprovação (2026-09-24).** Unidade M3-G: a `0011` agora é
 > `0011_privilegios.sql` e a da Task 17 é `0012_mesclar.sql`. A migração desta tarefa passa a
-> ser **`supabase/migrations/0013_salvar_depoimento.sql`** (nomes trocados abaixo) e termina
+> ser **`supabase/migrations/0015_salvar_depoimento.sql`** (nomes trocados abaixo) e termina
 > com `revoke all on function public.salvar_depoimento(jsonb) from public, anon, service_role;` e
 > `grant execute on function public.salvar_depoimento(jsonb) to authenticated;` — mesmo
 > motivo da emenda M3-G da Task 17 (o `grant` é obrigatório; o `revoke` de `public, anon,
@@ -3326,7 +3366,7 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 > **Quinta emenda (revisão conjunta Tasks 15/16/18 + M3-G, 2026-09-24) — consolidação.** As
 > emendas acima ficaram espalhadas entre trechos de código parciais e prosa, e o "Trecho corrigido"
 > da terceira emenda ainda tinha casts de enum sem `public.`. O **Step 1** (teste), o **Step 3**
-> (SQL de `0013_salvar_depoimento.sql`) e o **Step 4** (`src/dados/depoimentos.js`) abaixo foram
+> (SQL de `0015_salvar_depoimento.sql`) e o **Step 4** (`src/dados/depoimentos.js`) abaixo foram
 > reescritos como **um bloco autoritativo cada**, com todas as emendas aplicadas; em caso de
 > divergência, valem eles, não os trechos das emendas acima (mantidas só como histórico):
 > - SQL: `set search_path = ''`; tabelas **e todos os casts de enum** qualificados com `public.`;
@@ -3349,7 +3389,7 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 >   antes do RPC; ganha `removerPrint(caminho)` para a troca de print da Task 20.
 
 **Files:**
-- Create: `src/dados/depoimentos.js`, `supabase/migrations/0013_salvar_depoimento.sql`, `testes/rls/salvar.test.js`
+- Create: `src/dados/depoimentos.js`, `supabase/migrations/0015_salvar_depoimento.sql`, `testes/rls/salvar.test.js`
 - Modify: `testes/rls/privilegios.test.js` (acrescentar `'salvar_depoimento(p_ficha jsonb)'` a `FUNCOES_DO_APP`, em ordem alfabética)
 
 **Interfaces:**
@@ -3588,7 +3628,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Escrever a migração**
 
-Bloco autoritativo (quinta emenda). `supabase/migrations/0013_salvar_depoimento.sql`:
+Bloco autoritativo (quinta emenda). `supabase/migrations/0015_salvar_depoimento.sql`:
 
 ```sql
 -- Grava o depoimento inteiro (pai + tipos, canais, participacoes, notas e
@@ -4081,8 +4121,8 @@ git commit -m "feat: ficha do depoimento com participacoes, notas, resultados e 
 >      migração **nova** — migrações são append-only a partir da `0011`
 >      (mesma convenção das emendas M3-G nas Tasks 17 e 19: número livre
 >      conferido em `supabase/migrations/` na hora de implementar, não
->      hardcoded aqui — hoje seria `0014`, depois de `0012_mesclar.sql` e
->      `0013_salvar_depoimento.sql`, mas conferir se a Task 23 já tomou
+>      hardcoded aqui — hoje seria `0016`, depois de `0013_apelido_vs_nome.sql` (Task 17b),
+>      `0014` (Task 17c) e `0015_salvar_depoimento.sql`, mas conferir se a Task 23 já tomou
 >      esse número primeiro). `CREATE OR REPLACE FUNCTION` preserva os
 >      privilégios já concedidos quando a assinatura não muda (continua
 >      `buscar_depoimentos(p_filtros jsonb)`), então **não é preciso**
@@ -4267,7 +4307,8 @@ Resultado: ____________________
 > 1. O ping lê uma tabela **sem dado pessoal**:
 >    `curl -sf "$URL/rest/v1/curso?select=id&limit=1"` (Step 1 abaixo já corrigido).
 > 2. Esta tarefa cria a própria migração, com o **próximo número livre na hora** (hoje seria
->    `0014`, depois de `0012_mesclar.sql` e `0013_salvar_depoimento.sql`; conferir em
+>    `0016`, depois de `0013_apelido_vs_nome.sql` (Task 17b), `0014` (Task 17c) e
+>    `0015_salvar_depoimento.sql`; conferir em
 >    `supabase/migrations/`), contendo só `grant select on public.curso to service_role;` —
 >    nome sugerido `NNNN_ping_backup.sql`, com comentário dizendo que o grant existe para o
 >    ping anti-pausa do `backup.yml`.
