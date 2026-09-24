@@ -651,6 +651,17 @@ Vão para `docs/runbook-backup.md` e `docs/runbook-equipe.md`.
    - **Não tem → Rota B.** Criar a pasta no Drive pessoal e gerar o refresh token da própria conta.
 3. **Criar o OAuth client no Google Cloud** e registrar o client secret no painel do Supabase, nunca no repositório.
 4. **Publicar a tela de consentimento OAuth "Em produção"**, com escopos básicos e sem processo de verificação. Serve a dois propósitos ao mesmo tempo: o login sai da lista de usuários de teste, e — na Rota B — o refresh token do backup deixa de expirar a cada 7 dias.
+
+   > **Nota (2026-09-24).** Feito: a tela de consentimento está publicada "Em
+   > produção", com **home** `https://bernardocosta-web.github.io/un-provas-sociais/`
+   > e **política de privacidade**
+   > `https://bernardocosta-web.github.io/un-provas-sociais/privacidade.html`,
+   > exigidas pelo Google para essa publicação. Os domínios autorizados são o do
+   > projeto Supabase e `bernardocosta-web.github.io`. A página de privacidade
+   > mora em `public/privacidade.html`, fora da SPA — o Vite copia `public/`
+   > para `dist/` sem processar — e seu e-mail de contato é público por escolha
+   > do dono (ver exceção na invariante de dados reais no `CLAUDE.md`).
+
 5. **Popular `membro_equipe`** com os e-mails da equipe, por SQL, conforme o `runbook-equipe.md`.
 6. **Criar conta no Healthchecks.io** (plano gratuito), criar o check do backup diário com o prazo e o e-mail de alerta, e guardar a URL de ping no Secret `HEALTHCHECKS_PING_URL`. A URL nunca vai para o repositório.
 7. **Executar o ensaio de restauração** e registrar a data no runbook.

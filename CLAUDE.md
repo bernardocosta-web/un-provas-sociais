@@ -28,7 +28,11 @@ back-end próprio. Vite + Vue 3. Vitest. Interface e documentação em pt-BR.
 - **`nota.percentual` é coluna gerada.** Nenhum código a escreve. Não
   transformar em coluna comum "para simplificar".
 - **Nenhum dado real no repositório** — nem de aluno, nem de e-mail da equipe.
-  Fixtures são inventadas, com domínio `@exemplo.test`.
+  Fixtures são inventadas, com domínio `@exemplo.test`. Exceção intencional,
+  escolhida pelo dono: o e-mail de contato público em
+  `public/privacidade.html` (exigido pela tela de consentimento OAuth do
+  Google) não é e-mail de equipe usado pelo app — é canal de contato
+  deliberadamente público, fora do escopo desta regra.
 - **`anon key` é publicável; `service_role key` nunca sai dos Secrets.**
 - **Filtros valem no nível do depoimento**, satisfeitos por qualquer
   participação. Não "consertar" para `JOIN` na mesma participação — existe um

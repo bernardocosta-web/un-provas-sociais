@@ -1937,6 +1937,15 @@ git commit -m "feat(lib): montagem de filtros e serializacao na URL"
 >
 > **Passo faltante — URL Configuration.** Em **Authentication → URL Configuration**: **Site URL** `https://<dono-do-repo>.github.io/un-provas-sociais/`; **Redirect URLs** `https://<dono-do-repo>.github.io/un-provas-sociais/**` e `http://localhost:5173/un-provas-sociais/**`.
 >
+> **Dono do repositório (2026-09-24).** `<dono-do-repo>` é `bernardocosta-web`:
+> **Site URL** `https://bernardocosta-web.github.io/un-provas-sociais/`. A tela
+> de consentimento OAuth (Step 2) exige uma página inicial e uma política de
+> privacidade acessíveis por URL — usar **home**
+> `https://bernardocosta-web.github.io/un-provas-sociais/` e **privacidade**
+> `https://bernardocosta-web.github.io/un-provas-sociais/privacidade.html`
+> (fonte em `public/privacidade.html`, fora da SPA). Domínios autorizados:
+> o domínio do projeto Supabase e `bernardocosta-web.github.io`.
+>
 > **Nomes atuais no painel.** Em **Project Settings → API Keys** o Supabase hoje mostra uma **"Publishable key"** (`sb_publishable_…`); a **anon key** antiga fica em **"Legacy API keys"**. Qualquer uma das duas serve como `VITE_SUPABASE_ANON_KEY` (Step 6) — escolher uma e usar sempre a mesma, nunca a chave **Secret**/`service_role`.
 >
 > **Google Auth Platform.** A tela de permissão OAuth (Step 2) hoje mora em **"Google Auth Platform"** (abas Branding / Audience / Data Access / Clients) — os nomes dos menus mudaram, o fluxo descrito continua valendo. Contas Google Workspace têm a opção de público **"Internal"** (login restrito ao domínio da organização, sem precisar publicar) como alternativa ao **"External"** do Step 2; decisão do dono, ainda em aberto.
@@ -4317,8 +4326,17 @@ git commit -m "docs: registra ensaio de restauracao e teste do alarme"
 
 ### Task 25: Workflows de teste, deploy e migrações
 
+> **Emenda pós-aprovação (2026-09-24).** `docs/runbook-equipe.md` já existe —
+> criado fora de ordem para documentar a publicação da tela de consentimento
+> OAuth "Em produção" (home e política de privacidade exigidas pelo Google,
+> ver emenda da Task 13). Ele já tem a seção "Login com Google e política de
+> privacidade". O Step 4 abaixo **estende** esse arquivo, acrescentando as
+> seções "Adicionar", "Remover" e "Conferir quem tem acesso" — não o cria do
+> zero. Em **Files**, `docs/runbook-equipe.md` sai de `Create` para `Modify`.
+
 **Files:**
-- Create: `.github/workflows/testes.yml`, `.github/workflows/deploy.yml`, `.github/workflows/migracoes.yml`, `docs/runbook-equipe.md`
+- Create: `.github/workflows/testes.yml`, `.github/workflows/deploy.yml`, `.github/workflows/migracoes.yml`
+- Modify: `docs/runbook-equipe.md`
 
 **Interfaces:**
 - Consumes: Secrets da Task 13
