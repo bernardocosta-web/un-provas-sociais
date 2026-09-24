@@ -49,6 +49,18 @@ async function aoSalvarInstituicao() {
   await carregarInstituicoes()
 }
 
+// Mesclar apaga a instituicao perdedora (0012, mesclar_instituicoes). Se o
+// formulario estiver aberto sobre a vencedora ou a perdedora, os campos
+// continuam mostrando dados que nao valem mais (a perdedora nem existe
+// mais). Mais simples e seguro fechar sempre — ListaInstituicoes nao manda
+// os ids da mesclagem, e nao ha por que guardar esse estado so para decidir
+// entre "fechar as duas" e "fechar sempre".
+async function aoMesclarInstituicao() {
+  mostrarFormInstituicao.value = false
+  instituicaoEditando.value = null
+  await carregarInstituicoes()
+}
+
 onMounted(carregarInstituicoes)
 </script>
 
@@ -84,7 +96,7 @@ onMounted(carregarInstituicoes)
         v-else
         :instituicoes="instituicoes"
         @editar="editarInstituicao"
-        @mesclado="carregarInstituicoes"
+        @mesclado="aoMesclarInstituicao"
       />
     </div>
 
