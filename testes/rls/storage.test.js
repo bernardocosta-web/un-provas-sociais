@@ -118,10 +118,14 @@ describe('isolamento de leitura de prints', () => {
     expect(linhas).toEqual([])
   })
 
+  // Barreira dupla desde a 0011: as politicas de storage.objects valem para
+  // todo papel e chamam public.eh_membro_equipe(), na qual anon nao tem
+  // EXECUTE — a consulta e recusada antes de a RLS filtrar. A leitura publica
+  // de logos nao passa por aqui (URL publica da Storage API, sem RLS).
   it('anonimo nao le objetos de prints', async () => {
-    const linhas = await comoAnonimo((c) =>
-      c.query(`select * from storage.objects where bucket_id = 'prints'`).then((r) => r.rows))
-    expect(linhas).toEqual([])
+    await expect(
+      comoAnonimo((c) => c.query(`select * from storage.objects where bucket_id = 'prints'`))
+    ).rejects.toThrow(/permission denied for function eh_membro_equipe/)
   })
 
   it('membro le objetos de prints', async () => {

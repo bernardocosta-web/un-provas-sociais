@@ -17,6 +17,14 @@ back-end próprio. Vite + Vue 3. Vitest. Interface e documentação em pt-BR.
 
 - **RLS em toda tabela de `public`.** Tabela nova sem RLS reprova a suíte. RLS
   desligada entrega o dado para a internet inteira, e nada no código denuncia.
+- **`GRANT` explícito para toda tabela e função usada pelo app**, na migração
+  que a cria, tabela por tabela (nunca `on all tables`). O projeto hospedado
+  não expõe tabelas novas automaticamente, e o local foi igualado a ele na
+  `0011_privilegios.sql`: sem `GRANT`, o app recebe "permission denied" — e o
+  local agora falha igual. `authenticated` recebe o CRUD (a RLS decide as
+  linhas), só `select` em `membro_equipe`; `anon` não recebe nada. Existe teste
+  de catálogo (`testes/rls/privilegios.test.js`) que reprova tabela sem
+  `GRANT` e função com `EXECUTE` para quem não deve.
 - **`nota.percentual` é coluna gerada.** Nenhum código a escreve. Não
   transformar em coluna comum "para simplificar".
 - **Nenhum dado real no repositório** — nem de aluno, nem de e-mail da equipe.

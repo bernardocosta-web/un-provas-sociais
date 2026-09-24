@@ -100,8 +100,11 @@ async function buscarComoPapel(comoPapel, filtros) {
 }
 
 describe('buscar_depoimentos e SECURITY INVOKER: RLS continua valendo dentro da funcao', () => {
+  // Barreira dupla desde a 0011: anon nao tem EXECUTE na funcao, entao nem
+  // chega a RLS de dentro dela. Exige a recusa pela causa.
   it('anonimo nao encontra nada', async () => {
-    expect(await buscarComoPapel(comoAnonimo, {})).toEqual([])
+    await expect(buscarComoPapel(comoAnonimo, {}))
+      .rejects.toThrow(/permission denied for function buscar_depoimentos/)
   })
 
   it('logado fora da equipe nao encontra nada', async () => {

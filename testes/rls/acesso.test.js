@@ -24,10 +24,13 @@ beforeAll(async () => {
 })
 
 describe('acesso a instituicao', () => {
+  // Barreira dupla desde a 0011: anon nao tem privilegio em public, entao o
+  // Postgres recusa antes da RLS. Exigir a recusa pela causa (e nao so "[]")
+  // prova que a primeira barreira esta de pe; a RLS continua atras dela.
   it('visitante sem login nao le nada', async () => {
-    const linhas = await comoAnonimo((c) =>
-      c.query('select * from instituicao').then((r) => r.rows))
-    expect(linhas).toEqual([])
+    await expect(
+      comoAnonimo((c) => c.query('select * from instituicao'))
+    ).rejects.toThrow(/permission denied for table instituicao/)
   })
 
   it('logado fora da lista nao le nada', async () => {
@@ -99,10 +102,11 @@ describe('acesso a instituicao', () => {
 })
 
 describe('acesso a membro_equipe', () => {
+  // Barreira dupla (privilegio + RLS): ver o comentario em "acesso a instituicao".
   it('visitante sem login nao le membro_equipe', async () => {
-    const linhas = await comoAnonimo((c) =>
-      c.query('select * from membro_equipe').then((r) => r.rows))
-    expect(linhas).toEqual([])
+    await expect(
+      comoAnonimo((c) => c.query('select * from membro_equipe'))
+    ).rejects.toThrow(/permission denied for table membro_equipe/)
   })
 
   it('estranho nao le membro_equipe', async () => {
