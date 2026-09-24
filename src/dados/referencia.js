@@ -12,27 +12,20 @@ export async function listarInstituicoes() {
   }))
 }
 
-// insert sem id, update com id: `id` e `generated always`, e um upsert com
-// id explicito e recusado pelo Postgres (428C9, "cannot insert a non-DEFAULT
-// value into column id") antes mesmo de chegar no ON CONFLICT.
+// Grava a instituicao e substitui seus apelidos numa unica chamada RPC
+// (salvar_instituicao, 0012), que faz tudo numa transacao so. Sem isso, tres
+// chamadas separadas (update instituicao -> delete apelidos -> insert
+// apelidos) deixavam uma janela: um apelido colidindo com o de outra
+// instituicao (apelido e unico globalmente) so falhava na insercao, DEPOIS
+// de logo_path ja ter sido trocado — a instituicao ficava com uma logo nova
+// e nenhum apelido. `id` ausente insere (e `generated always`, nunca vai no
+// payload); presente, atualiza.
 export async function salvarInstituicao({ id, nome_canonico, logo_path, apelidos }) {
-  const campos = { nome_canonico, logo_path: logo_path ?? null }
-  const consulta = id
-    ? supabase.from('instituicao').update(campos).eq('id', id)
-    : supabase.from('instituicao').insert(campos)
-  const { data, error } = await consulta.select('id').single()
+  const { data, error } = await supabase.rpc('salvar_instituicao', {
+    p_dados: { id: id ?? null, nome_canonico, logo_path: logo_path ?? null, apelidos: apelidos ?? [] },
+  })
   if (error) throw error
-
-  const { error: erroLimpeza } = await supabase
-    .from('instituicao_apelido').delete().eq('instituicao_id', data.id)
-  if (erroLimpeza) throw erroLimpeza
-  if (apelidos?.length) {
-    const { error: erroApelido } = await supabase
-      .from('instituicao_apelido')
-      .insert(apelidos.map((apelido) => ({ instituicao_id: data.id, apelido })))
-    if (erroApelido) throw erroApelido
-  }
-  return data.id
+  return data
 }
 
 // A funcao devolve o logo_path da perdedora; o arquivo so e removido do
@@ -86,6 +79,33 @@ export async function listarSimples(tabela) {
 export async function criarSimples(tabela, nome) {
   const { data, error } = await supabase
     .from(tabela).insert({ nome }).select('id, nome').single()
+  if (error) throw error
+  return data
+}
+
+// Prova nao e "simples" para leitura: tem instituicao opcional (nula para o
+// ENEM), e listarSimples so devolve id/nome. O nome da instituicao vem junto
+// para a aba de Provas nao precisar de uma segunda consulta por linha.
+export async function listarProvas() {
+  const { data, error } = await supabase
+    .from('prova')
+    .select('id, nome, instituicao_id, instituicao(nome_canonico)')
+    .order('nome')
+  if (error) throw error
+  return data.map((p) => ({
+    id: p.id,
+    nome: p.nome,
+    instituicao_id: p.instituicao_id,
+    instituicao_nome: p.instituicao?.nome_canonico ?? null,
+  }))
+}
+
+export async function criarProva({ nome, instituicao_id }) {
+  const { data, error } = await supabase
+    .from('prova')
+    .insert({ nome, instituicao_id: instituicao_id ?? null })
+    .select('id, nome, instituicao_id')
+    .single()
   if (error) throw error
   return data
 }

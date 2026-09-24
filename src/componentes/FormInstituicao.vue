@@ -1,6 +1,7 @@
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { comprimir } from '../lib/imagem.js'
+import { mensagemDeErro } from '../lib/erros.js'
 import { salvarInstituicao, enviarLogo, removerLogo, urlDaLogo } from '../dados/referencia.js'
 
 const props = defineProps({
@@ -13,6 +14,7 @@ const form = reactive({
   nome_canonico: props.instituicao?.nome_canonico ?? '',
   logo_path: props.instituicao?.logo_path ?? null,
 })
+const urlLogoAtual = computed(() => urlDaLogo(form.logo_path))
 const apelidos = ref([...(props.instituicao?.apelidos ?? [])])
 const novoApelido = ref('')
 const arquivoEscolhido = ref(null)
@@ -50,7 +52,7 @@ async function salvar() {
     await salvarInstituicao({ ...form, logo_path: novo ?? antigo, apelidos: apelidos.value })
   } catch (e) {
     if (novo) await removerLogo(novo).catch(() => {})
-    erro.value = e.message
+    erro.value = mensagemDeErro(e)
     salvando.value = false
     return
   }
@@ -68,7 +70,7 @@ async function salvar() {
     </label>
 
     <div>
-      <img v-if="urlDaLogo(form.logo_path)" :src="urlDaLogo(form.logo_path)" alt="Logo atual" width="80" />
+      <img v-if="urlLogoAtual" :src="urlLogoAtual" alt="Logo atual" width="80" />
       <label>
         Logo (WebP)
         <input type="file" accept="image/*" @change="aoEscolherArquivo" />

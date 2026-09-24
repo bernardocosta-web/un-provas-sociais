@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { mensagemDeErro } from '../lib/erros.js'
 import { urlDaLogo, mesclarInstituicoes } from '../dados/referencia.js'
 
 const props = defineProps({
@@ -36,7 +37,7 @@ async function confirmarMesclagem() {
     perdedora.value = null
     emit('mesclado')
   } catch (e) {
-    erro.value = e.message
+    erro.value = mensagemDeErro(e)
   } finally {
     mesclando.value = false
   }

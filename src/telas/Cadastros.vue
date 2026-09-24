@@ -1,8 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { mensagemDeErro } from '../lib/erros.js'
 import { listarInstituicoes } from '../dados/referencia.js'
 import ListaInstituicoes from '../componentes/ListaInstituicoes.vue'
 import FormInstituicao from '../componentes/FormInstituicao.vue'
+import ListaProvas from '../componentes/ListaProvas.vue'
 import ListaSimples from '../componentes/ListaSimples.vue'
 
 const ABAS = [
@@ -26,7 +28,7 @@ async function carregarInstituicoes() {
   try {
     instituicoes.value = await listarInstituicoes()
   } catch (e) {
-    erroInstituicoes.value = e.message
+    erroInstituicoes.value = mensagemDeErro(e)
   } finally {
     carregandoInstituicoes.value = false
   }
@@ -71,6 +73,7 @@ onMounted(carregarInstituicoes)
 
       <FormInstituicao
         v-if="mostrarFormInstituicao"
+        :key="instituicaoEditando?.id ?? 'nova'"
         :instituicao="instituicaoEditando"
         @salvo="aoSalvarInstituicao"
         @cancelar="mostrarFormInstituicao = false"
@@ -85,7 +88,7 @@ onMounted(carregarInstituicoes)
       />
     </div>
 
-    <ListaSimples v-else-if="abaAtiva === 'provas'" tabela="prova" titulo="Provas" />
+    <ListaProvas v-else-if="abaAtiva === 'provas'" />
     <ListaSimples v-else-if="abaAtiva === 'cursos'" tabela="curso" titulo="Cursos" />
     <ListaSimples v-else-if="abaAtiva === 'materias'" tabela="materia" titulo="Matérias" />
   </section>

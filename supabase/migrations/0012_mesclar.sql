@@ -50,3 +50,66 @@ end $$;
 
 revoke all on function public.mesclar_instituicoes(bigint, bigint) from public, anon, service_role;
 grant execute on function public.mesclar_instituicoes(bigint, bigint) to authenticated;
+
+-- Grava uma instituicao (insert sem id, update com id — id e generated
+-- always) e substitui TODOS os seus apelidos, numa transacao so.
+--
+-- Por que isto e uma funcao e nao tres chamadas do client (update
+-- instituicao -> delete apelidos -> insert apelidos): apelido e unico
+-- globalmente (instituicao_apelido.apelido). Com tres chamadas separadas, um
+-- apelido colidindo com o de outra instituicao so falhava na insercao, DEPOIS
+-- de logo_path ja ter sido trocado — a instituicao ficava com uma logo nova e
+-- nenhum apelido. Aqui, se a insercao dos apelidos falhar (23505), a
+-- transacao inteira desfaz, inclusive o update de instituicao.
+--
+-- SECURITY INVOKER (padrao): roda com os privilegios e a RLS de quem chama.
+-- search_path vazio e tudo qualificado por public. (convencao da Task 11).
+--
+-- p_dados: {"id"?: bigint, "nome_canonico": text, "logo_path"?: text,
+-- "ativo"?: boolean, "apelidos"?: text[]}. "id" ausente ou nulo insere;
+-- presente, atualiza (erro se nao existir). "ativo" ausente preserva o valor
+-- atual no update, ou usa o default true no insert.
+create or replace function public.salvar_instituicao(p_dados jsonb)
+returns bigint
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_id bigint;
+  v_apelidos text[];
+begin
+  v_id := (p_dados->>'id')::bigint;
+
+  if v_id is null then
+    insert into public.instituicao (nome_canonico, logo_path, ativo)
+    values (
+      p_dados->>'nome_canonico',
+      p_dados->>'logo_path',
+      coalesce((p_dados->>'ativo')::boolean, true))
+    returning id into v_id;
+  else
+    update public.instituicao set
+      nome_canonico = p_dados->>'nome_canonico',
+      logo_path = p_dados->>'logo_path',
+      ativo = coalesce((p_dados->>'ativo')::boolean, ativo)
+    where id = v_id;
+    if not found then
+      raise exception 'instituicao % nao existe', v_id;
+    end if;
+  end if;
+
+  delete from public.instituicao_apelido where instituicao_id = v_id;
+
+  select array_agg(valor) into v_apelidos
+    from jsonb_array_elements_text(coalesce(p_dados->'apelidos', '[]'::jsonb)) as valor;
+
+  if v_apelidos is not null then
+    insert into public.instituicao_apelido (instituicao_id, apelido)
+    select v_id, apelido from unnest(v_apelidos) as apelido;
+  end if;
+
+  return v_id;
+end $$;
+
+revoke all on function public.salvar_instituicao(jsonb) from public, anon, service_role;
+grant execute on function public.salvar_instituicao(jsonb) to authenticated;

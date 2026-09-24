@@ -17,7 +17,8 @@ const TABELAS = ['aluno', 'aluno_perfil', 'curso', 'depoimento',
   'materia', 'membro_equipe', 'nota', 'participacao', 'prova', 'resultado']
 
 const FUNCOES_DO_APP = ['buscar_depoimentos(p_filtros jsonb)', 'eh_membro_equipe()',
-  'mesclar_instituicoes(p_vencedor bigint, p_perdedor bigint)']
+  'mesclar_instituicoes(p_vencedor bigint, p_perdedor bigint)',
+  'salvar_instituicao(p_dados jsonb)']
 
 async function consultar(sql, params) {
   const c = await conectar()

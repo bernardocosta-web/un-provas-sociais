@@ -3,6 +3,7 @@
 // três só têm nome, sem lógica própria (listarSimples/criarSimples cobrem
 // as duas). Evita repetir o mesmo formulário três vezes.
 import { ref, onMounted } from 'vue'
+import { mensagemDeErro } from '../lib/erros.js'
 import { listarSimples, criarSimples } from '../dados/referencia.js'
 
 const props = defineProps({
@@ -22,7 +23,7 @@ async function carregar() {
   try {
     itens.value = await listarSimples(props.tabela)
   } catch (e) {
-    erro.value = e.message
+    erro.value = mensagemDeErro(e)
   } finally {
     carregando.value = false
   }
@@ -38,7 +39,7 @@ async function criar() {
     nomeNovo.value = ''
     await carregar()
   } catch (e) {
-    erro.value = e.message
+    erro.value = mensagemDeErro(e)
   } finally {
     criando.value = false
   }
