@@ -2,11 +2,18 @@
 // degradaria o texto do print, que e justamente o que o leitor precisa ler.
 export const LARGURA_MAXIMA = 1280
 export const QUALIDADE = 0.85
+// O WebP nao codifica mais de 16383 px por lado. Print de conversa longa
+// (1080 x 20000) passaria da largura sem problema, mas estouraria a altura
+// e o toBlob falharia ou cairia para PNG.
+export const ALTURA_MAXIMA_WEBP = 16383
 
 export function calcularDimensao({ largura, altura }, larguraMaxima = LARGURA_MAXIMA) {
-  if (largura <= larguraMaxima) return { largura, altura }
-  const escala = larguraMaxima / largura
-  return { largura: larguraMaxima, altura: Math.round(altura * escala) }
+  const escala = Math.min(larguraMaxima / largura, ALTURA_MAXIMA_WEBP / altura, 1)
+  if (escala === 1) return { largura, altura }
+  return {
+    largura: Math.min(larguraMaxima, Math.round(largura * escala)),
+    altura: Math.min(ALTURA_MAXIMA_WEBP, Math.round(altura * escala)),
+  }
 }
 
 // canvas.toBlob pode chamar o callback com null, e navegadores que nao sabem
@@ -16,7 +23,7 @@ export function calcularDimensao({ largura, altura }, larguraMaxima = LARGURA_MA
 export function validarBlobComprimido(blob) {
   if (blob === null) throw new Error('Não foi possível comprimir a imagem.')
   if (blob.type !== 'image/webp') {
-    throw new Error('Este navegador não gera WebP; use o Chrome ou o Edge.')
+    throw new Error('Este navegador não gera WebP (o Safari, por exemplo); use outro navegador.')
   }
   return blob
 }
@@ -32,6 +39,9 @@ export async function comprimir(arquivo) {
   tela.width = largura
   tela.height = altura
   tela.getContext('2d').drawImage(bitmap, 0, 0, largura, altura)
+  // Libera a memoria do bitmap decodificado (prints grandes pesam dezenas
+  // de MB) assim que ele ja foi desenhado no canvas.
+  bitmap.close()
   const blob = await new Promise((resolver) =>
     tela.toBlob(resolver, 'image/webp', QUALIDADE))
   return validarBlobComprimido(blob)
