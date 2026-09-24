@@ -31,6 +31,18 @@
 -- EXECUTE nao e concedido a nenhum papel da API, search_path vazio e tudo
 -- qualificado por public. (convencao da Task 11).
 --
+-- Trava contra corrida: sob READ COMMITTED, as checagens sao SELECTs comuns
+-- e duas transacoes que commitam juntas nao veem a linha uma da outra — a
+-- instituicao "X" numa e o apelido "x" de outra instituicao na outra
+-- passariam as duas. Por isso as duas funcoes comecam com
+-- pg_advisory_xact_lock(1713001), UMA chave constante (1713001 = "Task 17b,
+-- trava 1"; nenhuma outra parte do app usa advisory lock). A segunda
+-- transacao espera a primeira terminar (a trava e solta no fim da
+-- transacao) e, como cada comando do plpgsql tira um snapshot novo em READ
+-- COMMITTED, a checagem dela ja enxerga a linha commitada pela primeira.
+-- Serializa so os COMMITs que gravam nome/apelido de instituicao — volume
+-- baixo, custo desprezivel. Teste: testes/rls/apelido_vs_nome_corrida.test.js.
+--
 -- Codigo de erro: P0001 explicito (o de `raise exception`), como as outras
 -- excecoes proprias em pt-BR (mesclar_instituicoes). Nao 23505: esse
 -- src/lib/erros.js traduz para uma mensagem generica; P0001 nao tem entrada
@@ -87,6 +99,8 @@ declare
   v_instituicao bigint;
   v_dono text;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(1713001);  -- ver "Trava contra corrida" no topo
+
   select apelido, instituicao_id into v_apelido, v_instituicao
     from public.instituicao_apelido where id = new.id;
   if v_apelido is null then
@@ -128,6 +142,8 @@ declare
   v_nome text;
   v_dono text;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(1713001);  -- ver "Trava contra corrida" no topo
+
   select nome_canonico into v_nome from public.instituicao where id = new.id;
   if v_nome is null then
     return null;

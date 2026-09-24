@@ -76,6 +76,18 @@ describe('apelido x nome canonico de outra instituicao', () => {
       [`TESTE B ${M}3`, `Livre ${M}3`])).rejects.toThrow('já é o nome de outra instituição')
   }))
 
+  // "TESTE T" como apelido da propria T e aceito; movido para B, vira apelido
+  // de B igual ao nome de T (dispara pelo "update of instituicao_id").
+  it('recusa mover um apelido para outra instituicao quando conflita', () => emTransacao(async (c) => {
+    const t = await inst(c, `TESTE T ${M}13`)
+    const b = await inst(c, `TESTE B ${M}13`)
+    await apelido(c, t, `TESTE T ${M}13`)
+    await imediato(c)
+    await expect(c.query('update instituicao_apelido set instituicao_id = $1 where apelido = $2',
+      [b, `TESTE T ${M}13`])).rejects.toThrow(
+      `o apelido "TESTE T ${M}13" já é o nome de outra instituição: "TESTE T ${M}13"`)
+  }))
+
   it('recusa nome canonico novo igual a apelido de outra', () => emTransacao(async (c) => {
     const t = await inst(c, `TESTE T ${M}4`)
     await apelido(c, t, `TESTE B ${M}4`)
