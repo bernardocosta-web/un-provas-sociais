@@ -51,7 +51,8 @@ describe('catalogo', () => {
     for (const esperada of ['instituicao', 'instituicao_apelido', 'prova',
                             'curso', 'materia', 'membro_equipe',
                             'aluno', 'aluno_perfil', 'depoimento',
-                            'depoimento_tipo', 'depoimento_canal']) {
+                            'depoimento_tipo', 'depoimento_canal',
+                            'participacao', 'nota', 'resultado']) {
       expect(tabelas).toContain(esperada)
     }
   })
