@@ -2340,14 +2340,17 @@ git commit -m "feat(lib): compressao de imagem mirando o carrossel"
 > `0011_privilegios.sql` (privilégios explícitos, paridade com o hospedado, que não expõe
 > tabelas novas automaticamente). A migração desta tarefa passa a ser
 > **`supabase/migrations/0012_mesclar.sql`** (nomes trocados abaixo) e termina com
-> `revoke all on function public.mesclar_instituicoes(bigint, bigint) from public;` e
+> `revoke all on function public.mesclar_instituicoes(bigint, bigint) from public, anon, service_role;` e
 > `grant execute on function public.mesclar_instituicoes(bigint, bigint) to authenticated;`.
 > O `grant` é o que importa: sem ele o app recebe "permission denied" no hospedado e no
-> local. O `revoke ... from public` é redundante hoje — a `0011` já tirou o `EXECUTE` padrão
-> de `PUBLIC` para funções que `postgres` criar daqui em diante (revoke global de default
-> privileges) —, mas fica para a migração não depender de onde e por quem ela roda: se a
-> função for criada por outro papel, ou antes de o padrão valer, sem ele `PUBLIC` (e com ele
-> `anon`) ganharia `EXECUTE`. Os testes de catálogo de `testes/rls/privilegios.test.js` passam
+> local. O `revoke ... from public, anon, service_role` é redundante hoje — a `0011` já tirou
+> o `EXECUTE` padrão de `PUBLIC` para funções que `postgres` criar daqui em diante (revoke
+> global de default privileges) e os defaults de `postgres` em `public` não concedem nada aos
+> papéis da API —, mas fica para a migração não depender de onde e por quem ela roda: se a
+> função for criada por outro papel, ou antes de o padrão valer, `PUBLIC` ganharia `EXECUTE`
+> pelo padrão embutido e `anon`/`service_role` poderiam ganhar um grant explícito pelo default
+> ACL de outro papel (o local tem um de `supabase_admin` em `public` que concede tudo).
+> Revogar só de `PUBLIC` deixaria esse grant explícito de pé. Os testes de catálogo de `testes/rls/privilegios.test.js` passam
 > a exigir isso: acrescentar `'mesclar_instituicoes(p_vencedor bigint, p_perdedor bigint)'` a
 > `FUNCOES_DO_APP` (em ordem alfabética); sem o `grant`, "só as funções do app têm EXECUTE
 > para authenticated" reprova.
@@ -2455,7 +2458,7 @@ begin
   delete from instituicao where id = p_perdedor;
 end $$;
 
-revoke all on function public.mesclar_instituicoes(bigint, bigint) from public;
+revoke all on function public.mesclar_instituicoes(bigint, bigint) from public, anon, service_role;
 grant execute on function public.mesclar_instituicoes(bigint, bigint) to authenticated;
 ```
 
@@ -2973,10 +2976,10 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 > **Emenda pós-aprovação (2026-09-24).** Unidade M3-G: a `0011` agora é
 > `0011_privilegios.sql` e a da Task 17 é `0012_mesclar.sql`. A migração desta tarefa passa a
 > ser **`supabase/migrations/0013_salvar_depoimento.sql`** (nomes trocados abaixo) e termina
-> com `revoke all on function public.salvar_depoimento(jsonb) from public;` e
+> com `revoke all on function public.salvar_depoimento(jsonb) from public, anon, service_role;` e
 > `grant execute on function public.salvar_depoimento(jsonb) to authenticated;` — mesmo
-> motivo da emenda M3-G da Task 17 (o `grant` é obrigatório; o `revoke` é redundante após a
-> `0011`, mas deixa a migração independente de quem a roda). Acrescentar
+> motivo da emenda M3-G da Task 17 (o `grant` é obrigatório; o `revoke` de `public, anon,
+> service_role` é redundante após a `0011`, mas deixa a migração independente de quem a roda). Acrescentar
 > `'salvar_depoimento(p_ficha jsonb)'` a `FUNCOES_DO_APP` em `testes/rls/privilegios.test.js`
 > (em ordem alfabética). Nenhuma tabela nova: as tabelas que a função toca já têm
 > `select, insert, update, delete` para `authenticated` desde a `0011`.
@@ -3176,7 +3179,7 @@ begin
   return v_id;
 end $$;
 
-revoke all on function public.salvar_depoimento(jsonb) from public;
+revoke all on function public.salvar_depoimento(jsonb) from public, anon, service_role;
 grant execute on function public.salvar_depoimento(jsonb) to authenticated;
 ```
 
@@ -3556,8 +3559,29 @@ Resultado: ____________________
 
 ### Task 23: Workflow de backup com dead man's switch
 
+> **Emenda pós-aprovação (2026-09-24).** Unidade M3-G: desde a `0011_privilegios.sql`,
+> `service_role` não tem privilégio nenhum em `public` (paridade com o hospedado, que não
+> expõe tabelas novas). O ping anti-pausa original lia `membro_equipe` pela API REST com a
+> service key: sob a `0011` o PostgREST responde "permission denied", o `curl -sf` falha, o
+> job para antes do ping do Healthchecks e o dead man's switch dispara todo dia. Correção:
+> 1. O ping lê uma tabela **sem dado pessoal**:
+>    `curl -sf "$URL/rest/v1/curso?select=id&limit=1"` (Step 1 abaixo já corrigido).
+> 2. Esta tarefa cria a própria migração, com o **próximo número livre na hora** (hoje seria
+>    `0014`, depois de `0012_mesclar.sql` e `0013_salvar_depoimento.sql`; conferir em
+>    `supabase/migrations/`), contendo só `grant select on public.curso to service_role;` —
+>    nome sugerido `NNNN_ping_backup.sql`, com comentário dizendo que o grant existe para o
+>    ping anti-pausa do `backup.yml`.
+> 3. TDD: antes da migração, alterar `testes/rls/privilegios.test.js` para que a expectativa
+>    de `service_role` seja **exatamente** `curso: SELECT` (e nada mais em tabela, sequência
+>    ou função de `public`); ver o teste falhar; aplicar a migração; ver passar. `anon`
+>    continua sem nada.
+> 4. `pg_dump` (Step "Dump do banco") não é afetado: usa a URL do banco com o papel
+>    `postgres`, não a Data API. `scripts/backup.mjs` usa a service key só na Storage API
+>    (schema `storage`), que a `0011` não alterou.
+
 **Files:**
-- Create: `.github/workflows/backup.yml`, `scripts/backup.mjs`, `docs/runbook-backup.md`
+- Create: `.github/workflows/backup.yml`, `scripts/backup.mjs`, `docs/runbook-backup.md`, `supabase/migrations/NNNN_ping_backup.sql` (próximo número livre)
+- Modify: `testes/rls/privilegios.test.js` (expectativa de `service_role`)
 
 **Interfaces:**
 - Consumes: Secrets da Task 22
@@ -3601,7 +3625,7 @@ jobs:
           URL: ${{ secrets.VITE_SUPABASE_URL }}
           CHAVE: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          curl -sf "$URL/rest/v1/membro_equipe?select=email&limit=1" \
+          curl -sf "$URL/rest/v1/curso?select=id&limit=1" \
             -H "apikey: $CHAVE" -H "Authorization: Bearer $CHAVE" > /dev/null
 
       - name: Arquivos dos buckets e envio ao Drive
