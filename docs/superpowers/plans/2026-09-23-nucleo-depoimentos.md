@@ -884,6 +884,12 @@ git commit -m "feat(db): tabelas do nucleo com as regras 1, 4, 5, 6 e 7"
 
 ### Task 8: Participações, notas e resultados — regras 2 e 3 e a coluna gerada
 
+> **Emenda pós-aprovação (2026-09-24).** Mesma convenção registrada na emenda da Task 11:
+> fixture de tabela com nome único é sempre upsert idempotente. O código real
+> (`testes/rls/regras_nota.test.js`) já usa `on conflict (<coluna única>) do update set
+> <coluna> = excluded.<coluna> returning id` para `prova`, `materia` e `instituicao`; o
+> texto abaixo foi alinhado a ele.
+
 **Files:**
 - Create: `supabase/migrations/0007_participacao.sql`, `testes/rls/regras_nota.test.js`
 
@@ -908,16 +914,22 @@ beforeAll(async () => {
      values ('Gabaritei fisica', 'MANUAL') returning id`)
   idDepoimento = dep.rows[0].id
   const prova = await c.query(
-    `insert into prova (nome) values ('ENEM') returning id`)
+    `insert into prova (nome) values ('ENEM')
+     on conflict (nome) do update set nome = excluded.nome
+     returning id`)
   const part = await c.query(
     `insert into participacao (depoimento_id, prova_id, ano)
      values ($1, $2, 2025) returning id`, [idDepoimento, prova.rows[0].id])
   idParticipacao = part.rows[0].id
   const mat = await c.query(
-    `insert into materia (nome) values ('Fisica') returning id`)
+    `insert into materia (nome) values ('Fisica')
+     on conflict (nome) do update set nome = excluded.nome
+     returning id`)
   idMateria = mat.rows[0].id
   const inst = await c.query(
-    `insert into instituicao (nome_canonico) values ('UFMG') returning id`)
+    `insert into instituicao (nome_canonico) values ('UFMG')
+     on conflict (nome_canonico) do update set nome_canonico = excluded.nome_canonico
+     returning id`)
   idInstituicao = inst.rows[0].id
   await c.end()
 })
@@ -1347,6 +1359,10 @@ git commit -m "feat(db): buckets prints (privado) e logos (publico) com politica
 > `insert ... on conflict (<coluna única>) do update set <coluna> = excluded.<coluna>
 > returning id`, como `regras_nota.test.js` já faz. Convenção registrada aqui para
 > todo o plano: **fixture de tabela com nome único é sempre upsert idempotente.**
+> Pelo mesmo motivo, o insert de `'Vestibular do ITA'` no Step 1 abaixo vira
+> upsert em `(nome)`, também atualizando `instituicao_id = excluded.instituicao_id`
+> — sem isso, uma segunda execução recriaria a prova ligada à instituição errada
+> se `idIta` mudasse entre execuções.
 
 **Files:**
 - Create: `supabase/migrations/0010_busca.sql`, `testes/rls/busca.test.js`
@@ -1408,6 +1424,7 @@ beforeAll(async () => {
      returning id`)).rows[0].id
   const vestIta = (await c.query(
     `insert into prova (nome, instituicao_id) values ('Vestibular do ITA', $1)
+     on conflict (nome) do update set instituicao_id = excluded.instituicao_id
      returning id`, [idIta])).rows[0].id
 
   // Um depoimento, DUAS participacoes:
@@ -2174,6 +2191,18 @@ git commit -m "feat(lib): compressao de imagem mirando o carrossel"
 ### Task 17: Tela de cadastros de referência, com mesclagem de instituições
 
 > **Emenda pós-aprovação (2026-09-24).** Os buckets (Task 10) não ganharam política de UPDATE — decisão do dono. Trocar a logo de uma instituição não é um `upload({ upsert: true })` sobre o nome antigo: com `upsert: true`, o Storage cai no caminho de UPDATE quando o nome já existe, e sem política de UPDATE a chamada é negada. `enviarLogo` abaixo muda para `upsert: false`. Nome de arquivo único por envio, regra usada por todo chamador de `enviarLogo`/`enviarPrint` neste plano (Tasks 17, 19, 20): nomeArquivo = `` `${crypto.randomUUID()}.webp` `` (`crypto.randomUUID()` disponível em navegadores em `https`/`localhost`). A troca por uma logo nova vira **enviar o arquivo novo com nome novo, gravar a referência (`logo_path`) na tabela, e só depois de esse salvamento confirmar, apagar o arquivo antigo** com `storage.from('logos').remove([antigoLogoPath])` — nessa ordem, nunca ao contrário, para não deixar `logo_path` apontando para um arquivo já apagado. Se o salvamento falhar, quem chama apaga o arquivo **novo** recém-enviado (não o antigo) — sem isso, um envio bem-sucedido seguido de falha ao salvar deixa lixo órfão no bucket. Step 5 (`FormInstituicao.vue`) abaixo foi reescrito para descrever essa sequência.
+>
+> **Segunda emenda (2026-09-24), mesma data.** Convenção da emenda da Task 11: fixture de
+> tabela com nome único é sempre upsert idempotente. No Step 1 abaixo, `instituicao
+> 'Universidade Federal de Juiz de Fora'`, `instituicao 'UFJF'` e `prova 'ENEM'` viram
+> upsert em `(nome_canonico)`/`(nome)`. Conferido o caso que o teste de mesclagem apaga a
+> instituição perdedora: numa segunda execução, o upsert do vencedor resolve para a mesma
+> linha de sempre; o upsert do "perdedor" não encontra `nome_canonico = 'UFJF'` (a linha
+> anterior foi apagada pela mesclagem) e insere uma linha nova, sem conflito. Dentro da
+> função, `insert into instituicao_apelido (...) on conflict (apelido) do nothing` (Step 3)
+> já é idempotente: o apelido `'UFJF'` migrado na execução anterior permanece apontando
+> para o vencedor e a segunda inserção é ignorada sem erro. Nenhuma restauração adicional
+> de estado é necessária além dos dois upserts de instituição e do upsert da prova.
 
 **Files:**
 - Create: `src/dados/referencia.js`, `src/telas/Cadastros.vue`, `src/componentes/ListaInstituicoes.vue`, `src/componentes/FormInstituicao.vue`, `supabase/migrations/0011_mesclar.sql`, `testes/rls/mesclar.test.js`
@@ -2198,15 +2227,21 @@ describe('mesclar_instituicoes', () => {
     const c = await conectar()
     const vencedor = (await c.query(
       `insert into instituicao (nome_canonico) values
-       ('Universidade Federal de Juiz de Fora') returning id`)).rows[0].id
+       ('Universidade Federal de Juiz de Fora')
+       on conflict (nome_canonico) do update set nome_canonico = excluded.nome_canonico
+       returning id`)).rows[0].id
     const perdedor = (await c.query(
-      `insert into instituicao (nome_canonico) values ('UFJF') returning id`)).rows[0].id
+      `insert into instituicao (nome_canonico) values ('UFJF')
+       on conflict (nome_canonico) do update set nome_canonico = excluded.nome_canonico
+       returning id`)).rows[0].id
 
     const dep = (await c.query(
       `insert into depoimento (texto_completo, fonte)
        values ('t','MANUAL') returning id`)).rows[0].id
     const prova = (await c.query(
-      `insert into prova (nome) values ('ENEM') returning id`)).rows[0].id
+      `insert into prova (nome) values ('ENEM')
+       on conflict (nome) do update set nome = excluded.nome
+       returning id`)).rows[0].id
     const part = (await c.query(
       `insert into participacao (depoimento_id, prova_id, ano)
        values ($1,$2,2025) returning id`, [dep, prova])).rows[0].id
@@ -2521,6 +2556,11 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 ### Task 19: Gravação do depoimento inteiro
 
 > **Emenda pós-aprovação (2026-09-24).** Mesma decisão da emenda da Task 17: o bucket `prints` também não tem política de UPDATE, então `enviarPrint` abaixo muda para `upsert: false`, com o mesmo nome de arquivo único descrito na emenda da Task 17 (`` `${crypto.randomUUID()}.webp` ``). A orquestração da troca (enviar o novo → salvar a referência → só então apagar o antigo; se salvar falhar, apagar o novo em vez do antigo) fica a cargo de quem chama `enviarPrint` — ver a emenda da Task 20, onde essa chamada é combinada com `salvarDepoimento` na tela da ficha.
+>
+> **Segunda emenda (2026-09-24), mesma data.** Convenção da emenda da Task 11: fixture de
+> tabela com nome único é sempre upsert idempotente. No Step 1 abaixo, `prova 'ENEM'`,
+> `materia 'Fisica'`, `instituicao 'UFMG'` (primeiro teste) e `prova 'Fuvest'` (segundo
+> teste) viram upsert em `(nome)`/`(nome_canonico)`.
 
 **Files:**
 - Create: `src/dados/depoimentos.js`, `supabase/migrations/0012_salvar_depoimento.sql`, `testes/rls/salvar.test.js`
@@ -2552,11 +2592,17 @@ describe('salvar_depoimento', () => {
   it('grava depoimento com duas participacoes, nota e resultado', async () => {
     const c = await conectar()
     const prova = (await c.query(
-      `insert into prova (nome) values ('ENEM') returning id`)).rows[0].id
+      `insert into prova (nome) values ('ENEM')
+       on conflict (nome) do update set nome = excluded.nome
+       returning id`)).rows[0].id
     const materia = (await c.query(
-      `insert into materia (nome) values ('Fisica') returning id`)).rows[0].id
+      `insert into materia (nome) values ('Fisica')
+       on conflict (nome) do update set nome = excluded.nome
+       returning id`)).rows[0].id
     const inst = (await c.query(
-      `insert into instituicao (nome_canonico) values ('UFMG') returning id`)).rows[0].id
+      `insert into instituicao (nome_canonico) values ('UFMG')
+       on conflict (nome_canonico) do update set nome_canonico = excluded.nome_canonico
+       returning id`)).rows[0].id
     await c.end()
 
     const id = await salvar({
@@ -2585,7 +2631,9 @@ describe('salvar_depoimento', () => {
   it('nada e gravado se uma parte viola regra', async () => {
     const c = await conectar()
     const prova = (await c.query(
-      `insert into prova (nome) values ('Fuvest') returning id`)).rows[0].id
+      `insert into prova (nome) values ('Fuvest')
+       on conflict (nome) do update set nome = excluded.nome
+       returning id`)).rows[0].id
     const antes = Number((await c.query('select count(*)::int n from depoimento')).rows[0].n)
     await c.end()
 
