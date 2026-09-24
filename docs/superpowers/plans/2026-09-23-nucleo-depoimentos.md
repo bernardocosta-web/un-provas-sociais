@@ -2803,14 +2803,14 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 
 ### Task 19: Gravação do depoimento inteiro
 
-> **Emenda pós-aprovação (2026-09-24).** Mesma decisão da emenda da Task 17: o bucket `prints` também não tem política de UPDATE, então `enviarPrint` abaixo muda para `upsert: false`, com o mesmo nome de arquivo único descrito na emenda da Task 17 (`` `${crypto.randomUUID()}.webp` ``). A orquestração da troca (enviar o novo → salvar a referência → só então apagar o antigo; se salvar falhar, apagar o novo em vez do antigo) fica a cargo de quem chama `enviarPrint` — ver a emenda da Task 20, onde essa chamada é combinada com `salvarDepoimento` na tela da ficha.
+> **[Aplicada no Step 4 abaixo — revisão conjunta, 2026-09-24.]** **Emenda pós-aprovação (2026-09-24).** Mesma decisão da emenda da Task 17: o bucket `prints` também não tem política de UPDATE, então `enviarPrint` abaixo muda para `upsert: false`, com o mesmo nome de arquivo único descrito na emenda da Task 17 (`` `${crypto.randomUUID()}.webp` ``). A orquestração da troca (enviar o novo → salvar a referência → só então apagar o antigo; se salvar falhar, apagar o novo em vez do antigo) fica a cargo de quem chama `enviarPrint` — ver a emenda da Task 20, onde essa chamada é combinada com `salvarDepoimento` na tela da ficha.
 >
-> **Segunda emenda (2026-09-24), mesma data.** Convenção da emenda da Task 11: fixture de
+> **[Aplicada no Step 1/3 abaixo — revisão conjunta, 2026-09-24.]** **Segunda emenda (2026-09-24), mesma data.** Convenção da emenda da Task 11: fixture de
 > tabela com nome único é sempre upsert idempotente. No Step 1 abaixo, `prova 'ENEM'`,
 > `materia 'Fisica'`, `instituicao 'UFMG'` (primeiro teste) e `prova 'Fuvest'` (segundo
 > teste) viram upsert em `(nome)`/`(nome_canonico)`.
 
-> **Terceira emenda (Marco 2, 2026-09-24).** Revisão do Marco 2 encontrou três problemas no
+> **[Aplicada no Step 1/3 abaixo — revisão conjunta, 2026-09-24.]** **Terceira emenda (Marco 2, 2026-09-24).** Revisão do Marco 2 encontrou três problemas no
 > Step 1 (teste) e no Step 3 (SQL) abaixo:
 > 1. **`count(*) from depoimento` global é instável com arquivos rodando em paralelo**
 >    (`vite.config.js` roda os arquivos de teste em paralelo — mesmo problema que a emenda da
@@ -2860,7 +2860,8 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 >    "tem print" para um depoimento sem print de verdade.
 >
 > Trecho corrigido do Step 3 (cabeçalho e as três colunas afetadas — o resto do corpo da função
-> não muda):
+> não muda). **Histórico — não copiar:** este trecho ainda tem casts de enum sem `public.` e
+> falha com `search_path = ''` (ver a quarta emenda); o Step 3 abaixo é a versão que vale.
 > ```sql
 > create or replace function public.salvar_depoimento(p_ficha jsonb)
 > returns bigint
@@ -2962,7 +2963,7 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 > conteúdo), e qualquer caminho futuro que edite só filhos (ex.: uma função que só mexe em
 > `nota`) deve fazer o mesmo, ou `atualizado_em` fica desatualizado em silêncio.
 
-> **Quarta emenda (2026-09-24), fix round 1 da Task 18.** A revisão da Task 18 encontrou mais
+> **[Aplicada no Step 1/3 abaixo — revisão conjunta, 2026-09-24.]** **Quarta emenda (2026-09-24), fix round 1 da Task 18.** A revisão da Task 18 encontrou mais
 > dois problemas que a nullif-em-branco da terceira emenda (acima) não cobria:
 > 1. `observacao_descarte` também precisa gravar com `nullif(btrim(p_ficha->>'observacao_descarte'), '')`
 >    — mesmo motivo do `print_path`/`link_original`/`link_post`: a ficha manda `''` para um
@@ -2985,7 +2986,7 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 > 4. O teste do Step 1 (`testes/rls/salvar.test.js`) deve incluir o caso "observação em branco em
 >    depoimento DISPONIVEL é gravada como NULL e aceita".
 
-> **Emenda pós-aprovação (2026-09-24).** Unidade M3-G: a `0011` agora é
+> **[Aplicada no Step 3 abaixo e em Files — revisão conjunta, 2026-09-24.]** **Emenda pós-aprovação (2026-09-24).** Unidade M3-G: a `0011` agora é
 > `0011_privilegios.sql` e a da Task 17 é `0012_mesclar.sql`. A migração desta tarefa passa a
 > ser **`supabase/migrations/0013_salvar_depoimento.sql`** (nomes trocados abaixo) e termina
 > com `revoke all on function public.salvar_depoimento(jsonb) from public, anon, service_role;` e
@@ -2996,92 +2997,260 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 > (em ordem alfabética). Nenhuma tabela nova: as tabelas que a função toca já têm
 > `select, insert, update, delete` para `authenticated` desde a `0011`.
 
+> **Quinta emenda (revisão conjunta Tasks 15/16/18 + M3-G, 2026-09-24) — consolidação.** As
+> emendas acima ficaram espalhadas entre trechos de código parciais e prosa, e o "Trecho corrigido"
+> da terceira emenda ainda tinha casts de enum sem `public.`. O **Step 1** (teste), o **Step 3**
+> (SQL de `0013_salvar_depoimento.sql`) e o **Step 4** (`src/dados/depoimentos.js`) abaixo foram
+> reescritos como **um bloco autoritativo cada**, com todas as emendas aplicadas; em caso de
+> divergência, valem eles, não os trechos das emendas acima (mantidas só como histórico):
+> - SQL: `set search_path = ''`; tabelas **e todos os casts de enum** qualificados com `public.`;
+>   sem `atualizado_em = now()` (o trigger é a única fonte); todo texto opcional com
+>   `nullif(btrim(...), '')`; todo número/data/FK/enum opcional com `nullif(btrim(p->>'x'), '')::tipo`
+>   (inclusive `motivo_descarte` → `::public.motivo_descarte`); na edição, `autorizacao_publicacao`
+>   e `status_uso` ausentes mantêm o valor atual (são `not null`), e `id` inexistente/invisível pela
+>   RLS é recusado com `depoimento <id> nao encontrado` em vez de um erro de FK; termina com
+>   `revoke all ... from public, anon, service_role; grant execute ... to authenticated;`.
+>   Verificado contra o banco local (0002–0011) numa transação desfeita, como `postgres` e como
+>   membro ativo (`set local role authenticated` + `request.jwt.claims`).
+> - Teste: cada caso roda numa transação desfeita (nenhuma linha fica para trás) e procura só as
+>   próprias linhas (por `id` ou marcador), nunca por contagem global; inclui "observação em branco
+>   em depoimento DISPONIVEL é gravada como NULL e aceita", números/datas/FKs em branco
+>   (`valor_maximo: ''` com PERCENTUAL, `data_depoimento: ''`) gravados como NULL, reedição, id
+>   inexistente, e chamadas via `comoUsuario(MEMBRO)` (grant + RLS) e `comoUsuario(ESTRANHO)`
+>   (barrado pela RLS).
+> - Camada de dados: `salvarDepoimento` chama `validarDepoimento` sobre a ficha do formulário e
+>   depois `prepararFicha` (`src/lib/ficha.js`, já implementado e testado na revisão conjunta)
+>   antes do RPC; ganha `removerPrint(caminho)` para a troca de print da Task 20.
+
 **Files:**
 - Create: `src/dados/depoimentos.js`, `supabase/migrations/0013_salvar_depoimento.sql`, `testes/rls/salvar.test.js`
+- Modify: `testes/rls/privilegios.test.js` (acrescentar `'salvar_depoimento(p_ficha jsonb)'` a `FUNCOES_DO_APP`, em ordem alfabética)
 
 **Interfaces:**
-- Consumes: `validarDepoimento` (Task 18)
-- Produces: `salvarDepoimento(ficha) → id`, `carregarDepoimento(id) → ficha`
+- Consumes: `validarDepoimento` (Task 18), `prepararFicha` (`src/lib/ficha.js`)
+- Produces: `salvarDepoimento(ficha) → id`, `carregarDepoimento(id) → ficha`, `enviarPrint(arquivo, nomeArquivo) → caminho`, `removerPrint(caminho)`, `urlAssinadaDoPrint(caminho)`
 
 - [ ] **Step 1: Escrever o teste**
 
-Gravar em cinco tabelas pelo cliente, uma chamada por vez, deixa lixo se a terceira falhar. Uma função no banco grava tudo numa transação só.
+Gravar em cinco tabelas pelo cliente, uma chamada por vez, deixa lixo se a terceira falhar. Uma função no banco grava tudo numa transação só. (Bloco autoritativo — ver quinta emenda.)
 
 `testes/rls/salvar.test.js`:
 
 ```js
-import { describe, it, expect } from 'vitest'
-import { conectar } from './ajuda.js'
+import { describe, it, expect, beforeAll } from 'vitest'
+import { conectar, comoUsuario } from './ajuda.js'
 
-async function salvar(ficha) {
+const MEMBRO = 'membro@exemplo.test'
+const ESTRANHO = 'estranho@exemplo.test'
+const ERRO_RLS = /row-level security|permission denied/
+
+// Cada teste roda numa transacao desfeita no fim (nenhuma linha fica para
+// tras) e procura so as proprias linhas, por id ou por marcador unico no
+// texto — nunca por contagem global, que outro arquivo rodando em paralelo
+// muda no meio do teste.
+async function comoPostgres(executar) {
   const c = await conectar()
   try {
-    const { rows } = await c.query(
-      'select salvar_depoimento($1::jsonb) as id', [JSON.stringify(ficha)])
-    return Number(rows[0].id)
-  } finally { await c.end() }
+    await c.query('begin')
+    return await executar(c)
+  } finally {
+    await c.query('rollback').catch(() => {})
+    await c.end()
+  }
 }
 
+async function salvar(c, ficha) {
+  const { rows } = await c.query(
+    'select public.salvar_depoimento($1::jsonb) as id', [JSON.stringify(ficha)])
+  return Number(rows[0].id)
+}
+
+// Fixtures de nome unico: upsert idempotente (convencao da Task 11).
+async function referencias(c) {
+  const prova = (await c.query(
+    `insert into prova (nome) values ('ENEM')
+     on conflict (nome) do update set nome = excluded.nome
+     returning id`)).rows[0].id
+  const materia = (await c.query(
+    `insert into materia (nome) values ('Fisica')
+     on conflict (nome) do update set nome = excluded.nome
+     returning id`)).rows[0].id
+  const inst = (await c.query(
+    `insert into instituicao (nome_canonico) values ('UFMG')
+     on conflict (nome_canonico) do update set nome_canonico = excluded.nome_canonico
+     returning id`)).rows[0].id
+  return { prova: Number(prova), materia: Number(materia), inst: Number(inst) }
+}
+
+beforeAll(async () => {
+  const c = await conectar()
+  await c.query(
+    `insert into membro_equipe (email, nome, ativo) values ($1, 'Membro Ativo', true)
+     on conflict (email) do nothing`, [MEMBRO])
+  await c.end()
+})
+
 describe('salvar_depoimento', () => {
-  it('grava depoimento com duas participacoes, nota e resultado', async () => {
-    const c = await conectar()
-    const prova = (await c.query(
-      `insert into prova (nome) values ('ENEM')
-       on conflict (nome) do update set nome = excluded.nome
-       returning id`)).rows[0].id
-    const materia = (await c.query(
-      `insert into materia (nome) values ('Fisica')
-       on conflict (nome) do update set nome = excluded.nome
-       returning id`)).rows[0].id
-    const inst = (await c.query(
-      `insert into instituicao (nome_canonico) values ('UFMG')
-       on conflict (nome_canonico) do update set nome_canonico = excluded.nome_canonico
-       returning id`)).rows[0].id
-    await c.end()
+  it('grava depoimento com participacao, nota e resultado', async () => {
+    await comoPostgres(async (c) => {
+      const { prova, materia, inst } = await referencias(c)
+      const id = await salvar(c, {
+        texto_completo: 'Passei! MARCADORSALVARCOMPLETO',
+        fonte: 'MANUAL',
+        tipos: ['APROVACAO'],
+        canais: ['SUPERIORES'],
+        participacoes: [{
+          prova_id: prova, ano: 2025,
+          notas: [{ materia_id: materia, valor_original: 100, escala: 'PERCENTUAL' }],
+          resultados: [{ instituicao_id: inst, situacao: 'APROVADO' }],
+        }],
+      })
 
-    const id = await salvar({
-      texto_completo: 'Passei!',
-      fonte: 'MANUAL',
-      tipos: ['APROVACAO'],
-      canais: ['SUPERIORES'],
-      participacoes: [{
-        prova_id: prova, ano: 2025,
-        notas: [{ materia_id: materia, valor_original: 100, escala: 'PERCENTUAL' }],
-        resultados: [{ instituicao_id: inst, situacao: 'APROVADO' }],
-      }],
+      const n = (await c.query(
+        `select (select count(*)::int from participacao where depoimento_id = $1) as p,
+                (select count(*)::int from nota n join participacao p
+                   on p.id = n.participacao_id where p.depoimento_id = $1) as n,
+                (select count(*)::int from resultado r join participacao p
+                   on p.id = r.participacao_id where p.depoimento_id = $1) as r,
+                (select count(*)::int from depoimento_tipo where depoimento_id = $1) as t,
+                (select count(*)::int from depoimento_canal where depoimento_id = $1) as ca`,
+        [id])).rows[0]
+      expect(n).toEqual({ p: 1, n: 1, r: 1, t: 1, ca: 1 })
     })
-
-    const c2 = await conectar()
-    const n = await c2.query(
-      `select (select count(*) from participacao where depoimento_id = $1) as p,
-              (select count(*) from depoimento_tipo where depoimento_id = $1) as t,
-              (select count(*) from depoimento_canal where depoimento_id = $1) as ca`, [id])
-    await c2.end()
-    expect(Number(n.rows[0].p)).toBe(1)
-    expect(Number(n.rows[0].t)).toBe(1)
-    expect(Number(n.rows[0].ca)).toBe(1)
   })
 
   it('nada e gravado se uma parte viola regra', async () => {
+    // Autocommit de proposito: a funcao falha e a transacao dela e desfeita
+    // pelo proprio Postgres. O marcador e novo, entao a contagem certa e 0.
+    const MARCADOR = 'MARCADORSALVARROLLBACK'
     const c = await conectar()
-    const prova = (await c.query(
-      `insert into prova (nome) values ('Fuvest')
-       on conflict (nome) do update set nome = excluded.nome
-       returning id`)).rows[0].id
-    const antes = Number((await c.query('select count(*)::int n from depoimento')).rows[0].n)
-    await c.end()
+    try {
+      const prova = (await c.query(
+        `insert into prova (nome) values ('Fuvest')
+         on conflict (nome) do update set nome = excluded.nome
+         returning id`)).rows[0].id
 
-    await expect(salvar({
-      texto_completo: 'Texto valido',
-      fonte: 'MANUAL',
-      participacoes: [{ prova_id: prova, ano: 2025, notas: [],
-        resultados: [{ situacao: 'APROVADO', instituicao_id: null }] }],
-    })).rejects.toThrow()
+      await expect(salvar(c, {
+        texto_completo: `Texto valido ${MARCADOR}`,
+        fonte: 'MANUAL',
+        participacoes: [{ prova_id: prova, ano: 2025, notas: [],
+          resultados: [{ situacao: 'APROVADO', instituicao_id: null }] }],
+      })).rejects.toThrow(/ck_aprovado_exige_instituicao/)
 
-    const c2 = await conectar()
-    const depois = Number((await c2.query('select count(*)::int n from depoimento')).rows[0].n)
-    await c2.end()
-    expect(depois).toBe(antes)
+      const depois = (await c.query(
+        'select count(*)::int n from depoimento where texto_completo like $1',
+        [`%${MARCADOR}%`])).rows[0].n
+      expect(depois).toBe(0)
+    } finally {
+      await c.end()
+    }
+  })
+
+  it('observacao em branco em depoimento DISPONIVEL e gravada como NULL e aceita', async () => {
+    await comoPostgres(async (c) => {
+      const id = await salvar(c, {
+        texto_completo: 'Obs em branco MARCADORSALVAROBS',
+        fonte: 'MANUAL',
+        status_uso: 'DISPONIVEL',
+        observacao_descarte: '   ',
+        motivo_descarte: '',
+        resumo_curto: '',
+        link_original: ' ',
+        print_path: '',
+      })
+      const linha = (await c.query(
+        `select observacao_descarte, motivo_descarte, resumo_curto, link_original, print_path
+           from depoimento where id = $1`, [id])).rows[0]
+      expect(linha).toEqual({
+        observacao_descarte: null, motivo_descarte: null, resumo_curto: null,
+        link_original: null, print_path: null,
+      })
+    })
+  })
+
+  it('campo numerico ou data em branco e gravado como NULL', async () => {
+    await comoPostgres(async (c) => {
+      const { prova, materia } = await referencias(c)
+      const id = await salvar(c, {
+        texto_completo: 'Brancos numericos MARCADORSALVARNUMERO',
+        fonte: 'MANUAL',
+        data_depoimento: '',
+        data_postagem: '',
+        aluno_id: '',
+        participacoes: [{ prova_id: prova, ano: '2025',
+          notas: [{ materia_id: materia, valor_original: '80', escala: 'PERCENTUAL',
+            valor_maximo: '' }],
+          resultados: [{ situacao: 'NAO_APROVADO', instituicao_id: '', curso_id: '' }] }],
+      })
+      const dep = (await c.query(
+        'select data_depoimento, data_postagem, aluno_id from depoimento where id = $1',
+        [id])).rows[0]
+      expect(dep).toEqual({ data_depoimento: null, data_postagem: null, aluno_id: null })
+      const nota = (await c.query(
+        `select n.valor_maximo, n.percentual from nota n
+           join participacao p on p.id = n.participacao_id where p.depoimento_id = $1`,
+        [id])).rows[0]
+      expect(nota.valor_maximo).toBeNull()
+      expect(Number(nota.percentual)).toBe(80)
+      const res = (await c.query(
+        `select r.instituicao_id, r.curso_id from resultado r
+           join participacao p on p.id = r.participacao_id where p.depoimento_id = $1`,
+        [id])).rows[0]
+      expect(res).toEqual({ instituicao_id: null, curso_id: null })
+    })
+  })
+
+  it('reeditar substitui os filhos e mantem status ausente', async () => {
+    await comoPostgres(async (c) => {
+      const { prova, materia } = await referencias(c)
+      const id = await salvar(c, {
+        texto_completo: 'Original MARCADORSALVAREDICAO',
+        fonte: 'MANUAL',
+        status_uso: 'EM_PRODUCAO',
+        tipos: ['APROVACAO', 'ELOGIO'],
+        participacoes: [{ prova_id: prova, ano: 2025,
+          notas: [{ materia_id: materia, valor_original: 90, escala: 'PERCENTUAL' }],
+          resultados: [] }],
+      })
+      await salvar(c, { id, texto_completo: 'Editado MARCADORSALVAREDICAO', fonte: 'MANUAL',
+        tipos: ['ELOGIO'] })
+      const linha = (await c.query(
+        `select texto_completo, status_uso,
+                (select count(*)::int from depoimento_tipo where depoimento_id = $1) as t,
+                (select count(*)::int from participacao where depoimento_id = $1) as p
+           from depoimento where id = $1`, [id])).rows[0]
+      expect(linha).toEqual({ texto_completo: 'Editado MARCADORSALVAREDICAO',
+        status_uso: 'EM_PRODUCAO', t: 1, p: 0 })
+    })
+  })
+
+  it('id inexistente e recusado com mensagem clara', async () => {
+    await comoPostgres(async (c) => {
+      await expect(salvar(c, { id: -1, texto_completo: 'x', fonte: 'MANUAL' }))
+        .rejects.toThrow('depoimento -1 nao encontrado')
+    })
+  })
+
+  // Pelo caminho do app: authenticated precisa de EXECUTE na funcao e de
+  // privilegio nas tabelas (0011), e a RLS decide as linhas.
+  it('membro ativo da equipe grava pela API', async () => {
+    const linha = await comoUsuario(MEMBRO, async (c) => {
+      const id = await salvar(c, {
+        texto_completo: 'Pelo app MARCADORSALVARMEMBRO', fonte: 'MANUAL',
+        observacao_descarte: '',
+      })
+      return (await c.query(
+        'select texto_completo, observacao_descarte from depoimento where id = $1',
+        [id])).rows[0]
+    })
+    expect(linha).toEqual({ texto_completo: 'Pelo app MARCADORSALVARMEMBRO',
+      observacao_descarte: null })
+  })
+
+  it('quem nao e da equipe e barrado pela RLS', async () => {
+    await expect(comoUsuario(ESTRANHO, (c) => salvar(c, {
+      texto_completo: 'Intruso MARCADORSALVARESTRANHO', fonte: 'MANUAL',
+    }))).rejects.toThrow(ERRO_RLS)
   })
 })
 ```
@@ -3093,98 +3262,138 @@ Expected: FAIL.
 
 - [ ] **Step 3: Escrever a migração**
 
-`supabase/migrations/0013_salvar_depoimento.sql`:
+Bloco autoritativo (quinta emenda). `supabase/migrations/0013_salvar_depoimento.sql`:
 
 ```sql
+-- Grava o depoimento inteiro (pai + tipos, canais, participacoes, notas e
+-- resultados) numa transacao so: gravar em cinco tabelas pelo cliente, uma
+-- chamada por vez, deixaria lixo se a terceira falhasse.
+--
+-- SECURITY INVOKER (padrao): roda com os privilegios e a RLS de quem chama,
+-- entao so um membro ativo da equipe grava. search_path vazio e tudo
+-- qualificado por public. (convencao da Task 11), inclusive os casts de enum.
+--
+-- Branco vira NULL aqui tambem (defesa em profundidade: prepararFicha, em
+-- src/lib/ficha.js, ja faz isso no cliente). Todo texto opcional passa por
+-- nullif(btrim(...), ''); todo numero/data/FK/enum opcional passa por
+-- nullif(btrim(...), '')::tipo — sem isso, '' vira erro de cast
+-- ('' nao e date, bigint, numeric nem valor de enum).
+--
+-- atualizado_em nao e tocado aqui: o trigger trg_tocar_atualizado_em
+-- (0006) e a unica fonte. O update do pai roda em todo salvamento de ficha
+-- existente, mesmo quando so os filhos mudaram, e e isso que avanca
+-- atualizado_em.
 create or replace function public.salvar_depoimento(p_ficha jsonb)
 returns bigint
 language plpgsql
+set search_path = ''
 as $$
 declare
-  v_id   bigint := (p_ficha->>'id')::bigint;
+  v_id   bigint := nullif(btrim(p_ficha->>'id'), '')::bigint;
   v_part jsonb;
   v_pid  bigint;
   v_item jsonb;
 begin
   if v_id is null then
-    insert into depoimento (
+    insert into public.depoimento (
       texto_completo, resumo_curto, autor_bruto, autor_contato_bruto, fonte,
       link_original, data_depoimento, print_path, aluno_id,
       autorizacao_publicacao, status_uso, data_postagem, link_post,
       motivo_descarte, observacao_descarte)
     values (
-      p_ficha->>'texto_completo', p_ficha->>'resumo_curto',
-      p_ficha->>'autor_bruto', p_ficha->>'autor_contato_bruto',
-      (p_ficha->>'fonte')::fonte_depoimento,
-      p_ficha->>'link_original', (p_ficha->>'data_depoimento')::date,
-      p_ficha->>'print_path', (p_ficha->>'aluno_id')::bigint,
-      coalesce((p_ficha->>'autorizacao_publicacao')::autorizacao_publicacao,
-               'NAO_INFORMADO'),
-      coalesce((p_ficha->>'status_uso')::status_uso, 'DISPONIVEL'),
-      (p_ficha->>'data_postagem')::date, p_ficha->>'link_post',
-      (p_ficha->>'motivo_descarte')::motivo_descarte,
-      p_ficha->>'observacao_descarte')
+      p_ficha->>'texto_completo',
+      nullif(btrim(p_ficha->>'resumo_curto'), ''),
+      nullif(btrim(p_ficha->>'autor_bruto'), ''),
+      nullif(btrim(p_ficha->>'autor_contato_bruto'), ''),
+      nullif(btrim(p_ficha->>'fonte'), '')::public.fonte_depoimento,
+      nullif(btrim(p_ficha->>'link_original'), ''),
+      nullif(btrim(p_ficha->>'data_depoimento'), '')::date,
+      nullif(btrim(p_ficha->>'print_path'), ''),
+      nullif(btrim(p_ficha->>'aluno_id'), '')::bigint,
+      coalesce(nullif(btrim(p_ficha->>'autorizacao_publicacao'), '')
+                 ::public.autorizacao_publicacao, 'NAO_INFORMADO'),
+      coalesce(nullif(btrim(p_ficha->>'status_uso'), '')::public.status_uso,
+               'DISPONIVEL'),
+      nullif(btrim(p_ficha->>'data_postagem'), '')::date,
+      nullif(btrim(p_ficha->>'link_post'), ''),
+      nullif(btrim(p_ficha->>'motivo_descarte'), '')::public.motivo_descarte,
+      nullif(btrim(p_ficha->>'observacao_descarte'), ''))
     returning id into v_id;
   else
-    update depoimento set
+    -- autorizacao_publicacao e status_uso sao not null: ausentes na ficha,
+    -- mantem o valor atual em vez de estourar.
+    update public.depoimento set
       texto_completo = p_ficha->>'texto_completo',
-      resumo_curto = p_ficha->>'resumo_curto',
-      autor_bruto = p_ficha->>'autor_bruto',
-      autor_contato_bruto = p_ficha->>'autor_contato_bruto',
-      fonte = (p_ficha->>'fonte')::fonte_depoimento,
-      link_original = p_ficha->>'link_original',
-      data_depoimento = (p_ficha->>'data_depoimento')::date,
-      print_path = p_ficha->>'print_path',
-      aluno_id = (p_ficha->>'aluno_id')::bigint,
-      autorizacao_publicacao = (p_ficha->>'autorizacao_publicacao')::autorizacao_publicacao,
-      status_uso = (p_ficha->>'status_uso')::status_uso,
-      data_postagem = (p_ficha->>'data_postagem')::date,
-      link_post = p_ficha->>'link_post',
-      motivo_descarte = (p_ficha->>'motivo_descarte')::motivo_descarte,
-      observacao_descarte = p_ficha->>'observacao_descarte',
-      atualizado_em = now()
+      resumo_curto = nullif(btrim(p_ficha->>'resumo_curto'), ''),
+      autor_bruto = nullif(btrim(p_ficha->>'autor_bruto'), ''),
+      autor_contato_bruto = nullif(btrim(p_ficha->>'autor_contato_bruto'), ''),
+      fonte = nullif(btrim(p_ficha->>'fonte'), '')::public.fonte_depoimento,
+      link_original = nullif(btrim(p_ficha->>'link_original'), ''),
+      data_depoimento = nullif(btrim(p_ficha->>'data_depoimento'), '')::date,
+      print_path = nullif(btrim(p_ficha->>'print_path'), ''),
+      aluno_id = nullif(btrim(p_ficha->>'aluno_id'), '')::bigint,
+      autorizacao_publicacao = coalesce(
+        nullif(btrim(p_ficha->>'autorizacao_publicacao'), '')
+          ::public.autorizacao_publicacao,
+        autorizacao_publicacao),
+      status_uso = coalesce(
+        nullif(btrim(p_ficha->>'status_uso'), '')::public.status_uso, status_uso),
+      data_postagem = nullif(btrim(p_ficha->>'data_postagem'), '')::date,
+      link_post = nullif(btrim(p_ficha->>'link_post'), ''),
+      motivo_descarte = nullif(btrim(p_ficha->>'motivo_descarte'), '')::public.motivo_descarte,
+      observacao_descarte = nullif(btrim(p_ficha->>'observacao_descarte'), '')
     where id = v_id;
+    -- id inexistente (ou invisivel pela RLS) nao pode seguir para os filhos
+    -- e falhar com um erro de chave estrangeira que nao explica nada.
+    if not found then
+      raise exception 'depoimento % nao encontrado', v_id using errcode = 'P0002';
+    end if;
   end if;
 
   -- Substituicao total dos filhos: mais simples e mais seguro que
   -- reconciliar item a item, e o volume por depoimento e minusculo.
-  delete from depoimento_tipo  where depoimento_id = v_id;
-  delete from depoimento_canal where depoimento_id = v_id;
-  delete from participacao     where depoimento_id = v_id;
+  -- (nota e resultado saem em cascata com participacao.)
+  delete from public.depoimento_tipo  where depoimento_id = v_id;
+  delete from public.depoimento_canal where depoimento_id = v_id;
+  delete from public.participacao     where depoimento_id = v_id;
 
-  for v_item in select * from jsonb_array_elements(coalesce(p_ficha->'tipos','[]'))
+  for v_item in select * from jsonb_array_elements(coalesce(p_ficha->'tipos', '[]'))
   loop
-    insert into depoimento_tipo (depoimento_id, tipo)
-    values (v_id, (v_item #>> '{}')::tipo_depoimento);
+    insert into public.depoimento_tipo (depoimento_id, tipo)
+    values (v_id, (v_item #>> '{}')::public.tipo_depoimento);
   end loop;
 
-  for v_item in select * from jsonb_array_elements(coalesce(p_ficha->'canais','[]'))
+  for v_item in select * from jsonb_array_elements(coalesce(p_ficha->'canais', '[]'))
   loop
-    insert into depoimento_canal (depoimento_id, canal)
-    values (v_id, (v_item #>> '{}')::canal_un);
+    insert into public.depoimento_canal (depoimento_id, canal)
+    values (v_id, (v_item #>> '{}')::public.canal_un);
   end loop;
 
-  for v_part in select * from jsonb_array_elements(coalesce(p_ficha->'participacoes','[]'))
+  for v_part in select * from jsonb_array_elements(coalesce(p_ficha->'participacoes', '[]'))
   loop
-    insert into participacao (depoimento_id, prova_id, ano)
-    values (v_id, (v_part->>'prova_id')::bigint, (v_part->>'ano')::smallint)
+    insert into public.participacao (depoimento_id, prova_id, ano)
+    values (v_id,
+            nullif(btrim(v_part->>'prova_id'), '')::bigint,
+            nullif(btrim(v_part->>'ano'), '')::smallint)
     returning id into v_pid;
 
-    for v_item in select * from jsonb_array_elements(coalesce(v_part->'notas','[]'))
+    for v_item in select * from jsonb_array_elements(coalesce(v_part->'notas', '[]'))
     loop
-      insert into nota (participacao_id, materia_id, valor_original, escala, valor_maximo)
-      values (v_pid, (v_item->>'materia_id')::bigint,
-              (v_item->>'valor_original')::numeric,
-              (v_item->>'escala')::escala_nota,
-              (v_item->>'valor_maximo')::numeric);
+      insert into public.nota (participacao_id, materia_id, valor_original, escala, valor_maximo)
+      values (v_pid,
+              nullif(btrim(v_item->>'materia_id'), '')::bigint,
+              nullif(btrim(v_item->>'valor_original'), '')::numeric,
+              nullif(btrim(v_item->>'escala'), '')::public.escala_nota,
+              nullif(btrim(v_item->>'valor_maximo'), '')::numeric);
     end loop;
 
-    for v_item in select * from jsonb_array_elements(coalesce(v_part->'resultados','[]'))
+    for v_item in select * from jsonb_array_elements(coalesce(v_part->'resultados', '[]'))
     loop
-      insert into resultado (participacao_id, instituicao_id, curso_id, situacao)
-      values (v_pid, (v_item->>'instituicao_id')::bigint,
-              (v_item->>'curso_id')::bigint,
-              (v_item->>'situacao')::situacao_resultado);
+      insert into public.resultado (participacao_id, instituicao_id, curso_id, situacao)
+      values (v_pid,
+              nullif(btrim(v_item->>'instituicao_id'), '')::bigint,
+              nullif(btrim(v_item->>'curso_id'), '')::bigint,
+              nullif(btrim(v_item->>'situacao'), '')::public.situacao_resultado);
     end loop;
   end loop;
 
@@ -3197,16 +3406,24 @@ grant execute on function public.salvar_depoimento(jsonb) to authenticated;
 
 - [ ] **Step 4: Escrever a camada de dados**
 
-`src/dados/depoimentos.js`:
+Bloco autoritativo (quinta emenda). `src/dados/depoimentos.js`:
 
 ```js
 import { supabase } from './cliente.js'
 import { validarDepoimento } from '../lib/validacao.js'
+import { prepararFicha } from '../lib/ficha.js'
 
+// Valida a ficha como o formulario a tem (strings, brancos) e so depois a
+// prepara para o banco: branco vira null, numero de formulario vira Number,
+// valor_maximo fora de PONTOS vira null (prepararFicha, src/lib/ficha.js).
+// salvar_depoimento repete o nullif(btrim(...), '') como defesa em
+// profundidade.
 export async function salvarDepoimento(ficha) {
   const erros = validarDepoimento(ficha)
   if (erros.length) throw new Error(erros.join('\n'))
-  const { data, error } = await supabase.rpc('salvar_depoimento', { p_ficha: ficha })
+  const { data, error } = await supabase.rpc('salvar_depoimento', {
+    p_ficha: prepararFicha(ficha),
+  })
   if (error) throw error
   return data
 }
@@ -3247,6 +3464,13 @@ export async function enviarPrint(arquivo, nomeArquivo) {
   })
   if (error) throw error
   return nomeArquivo
+}
+
+// Troca/descarte de print: apaga um arquivo do bucket prints (o antigo depois
+// de salvar a referencia nova, ou o novo quando salvar falhou — Task 20).
+export async function removerPrint(caminho) {
+  const { error } = await supabase.storage.from('prints').remove([caminho])
+  if (error) throw error
 }
 
 export async function urlAssinadaDoPrint(caminho, segundos = 3600) {
