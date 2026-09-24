@@ -20,7 +20,7 @@ describe('provedores de autenticação — login só pelo Google', () => {
 
   beforeAll(() => {
     apikey = obterApiKey()
-  })
+  }, 60_000) // subprocesso da CLI (npx supabase status) fica lento sob carga paralela
 
   it('recusa cadastro por e-mail e senha', async () => {
     const { status, json } = await chamarAuth(
