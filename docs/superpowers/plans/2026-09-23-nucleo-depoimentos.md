@@ -1339,6 +1339,15 @@ git commit -m "feat(db): buckets prints (privado) e logos (publico) com politica
 
 ### Task 11: Função de busca com semântica de depoimento
 
+> **Emenda pós-aprovação (2026-09-24).** Os inserts simples de `materia 'Fisica'`,
+> `instituicao 'ITA'` e `prova 'ENEM'` no Step 1 abaixo colidem com as fixtures que o
+> Marco 1 já grava (`acesso.test.js`, `regras_nota.test.js`) — unique violation certa
+> depois de qualquer execução anterior, e intermitente logo após `db reset` porque o
+> vitest roda arquivos de teste em paralelo. Trocados por
+> `insert ... on conflict (<coluna única>) do update set <coluna> = excluded.<coluna>
+> returning id`, como `regras_nota.test.js` já faz. Convenção registrada aqui para
+> todo o plano: **fixture de tabela com nome único é sempre upsert idempotente.**
+
 **Files:**
 - Create: `supabase/migrations/0010_busca.sql`, `testes/rls/busca.test.js`
 
@@ -1381,14 +1390,22 @@ let idFisica, idMatematica, idIta, idDepoimento
 beforeAll(async () => {
   const c = await conectar()
   idFisica = (await c.query(
-    `insert into materia (nome) values ('Fisica') returning id`)).rows[0].id
+    `insert into materia (nome) values ('Fisica')
+     on conflict (nome) do update set nome = excluded.nome
+     returning id`)).rows[0].id
   idMatematica = (await c.query(
-    `insert into materia (nome) values ('Matematica') returning id`)).rows[0].id
+    `insert into materia (nome) values ('Matematica')
+     on conflict (nome) do update set nome = excluded.nome
+     returning id`)).rows[0].id
   idIta = (await c.query(
-    `insert into instituicao (nome_canonico) values ('ITA') returning id`)).rows[0].id
+    `insert into instituicao (nome_canonico) values ('ITA')
+     on conflict (nome_canonico) do update set nome_canonico = excluded.nome_canonico
+     returning id`)).rows[0].id
 
   const enem = (await c.query(
-    `insert into prova (nome) values ('ENEM') returning id`)).rows[0].id
+    `insert into prova (nome) values ('ENEM')
+     on conflict (nome) do update set nome = excluded.nome
+     returning id`)).rows[0].id
   const vestIta = (await c.query(
     `insert into prova (nome, instituicao_id) values ('Vestibular do ITA', $1)
      returning id`, [idIta])).rows[0].id
@@ -2156,7 +2173,7 @@ git commit -m "feat(lib): compressao de imagem mirando o carrossel"
 
 ### Task 17: Tela de cadastros de referência, com mesclagem de instituições
 
-> **Emenda pós-aprovação (2026-09-24).** Os buckets (Task 10) não ganharam política de UPDATE — decisão do dono. Trocar a logo de uma instituição não é um `upload({ upsert: true })` sobre o nome antigo: com `upsert: true`, o Storage cai no caminho de UPDATE quando o nome já existe, e sem política de UPDATE a chamada é negada. `enviarLogo` abaixo muda para `upsert: false`. Nome de arquivo único por envio, regra usada por todo chamador de `enviarLogo`/`enviarPrint` neste plano (Tasks 17, 19, 20): `nomeArquivo = \`${crypto.randomUUID()}.webp\`` (`crypto.randomUUID()` disponível em navegadores em `https`/`localhost`). A troca por uma logo nova vira **enviar o arquivo novo com nome novo, gravar a referência (`logo_path`) na tabela, e só depois de esse salvamento confirmar, apagar o arquivo antigo** com `storage.from('logos').remove([antigoLogoPath])` — nessa ordem, nunca ao contrário, para não deixar `logo_path` apontando para um arquivo já apagado. Se o salvamento falhar, quem chama apaga o arquivo **novo** recém-enviado (não o antigo) — sem isso, um envio bem-sucedido seguido de falha ao salvar deixa lixo órfão no bucket. Step 5 (`FormInstituicao.vue`) abaixo foi reescrito para descrever essa sequência.
+> **Emenda pós-aprovação (2026-09-24).** Os buckets (Task 10) não ganharam política de UPDATE — decisão do dono. Trocar a logo de uma instituição não é um `upload({ upsert: true })` sobre o nome antigo: com `upsert: true`, o Storage cai no caminho de UPDATE quando o nome já existe, e sem política de UPDATE a chamada é negada. `enviarLogo` abaixo muda para `upsert: false`. Nome de arquivo único por envio, regra usada por todo chamador de `enviarLogo`/`enviarPrint` neste plano (Tasks 17, 19, 20): nomeArquivo = `` `${crypto.randomUUID()}.webp` `` (`crypto.randomUUID()` disponível em navegadores em `https`/`localhost`). A troca por uma logo nova vira **enviar o arquivo novo com nome novo, gravar a referência (`logo_path`) na tabela, e só depois de esse salvamento confirmar, apagar o arquivo antigo** com `storage.from('logos').remove([antigoLogoPath])` — nessa ordem, nunca ao contrário, para não deixar `logo_path` apontando para um arquivo já apagado. Se o salvamento falhar, quem chama apaga o arquivo **novo** recém-enviado (não o antigo) — sem isso, um envio bem-sucedido seguido de falha ao salvar deixa lixo órfão no bucket. Step 5 (`FormInstituicao.vue`) abaixo foi reescrito para descrever essa sequência.
 
 **Files:**
 - Create: `src/dados/referencia.js`, `src/telas/Cadastros.vue`, `src/componentes/ListaInstituicoes.vue`, `src/componentes/FormInstituicao.vue`, `supabase/migrations/0011_mesclar.sql`, `testes/rls/mesclar.test.js`
