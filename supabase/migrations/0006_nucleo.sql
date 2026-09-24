@@ -44,6 +44,11 @@ create table depoimento (
   constraint ck_descarte_motivo
     check ((status_uso = 'DESCARTADO') = (motivo_descarte is not null)),
 
+  -- Regra 4, parte da observacao: reverter um descarte tem de limpar
+  -- tambem a observacao, senao ela sobrevive orfa num depoimento ativo.
+  constraint ck_descarte_observacao
+    check (status_uso = 'DESCARTADO' or observacao_descarte is null),
+
   -- Regra 5
   constraint ck_motivo_outro
     check (motivo_descarte is distinct from 'OUTRO'

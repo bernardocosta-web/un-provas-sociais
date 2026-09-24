@@ -34,6 +34,12 @@ describe('regras do depoimento', () => {
     ).rejects.toThrow(/ck_descarte_motivo/)
   })
 
+  it('regra 4, parte da observacao: observacao em depoimento nao descartado e recusada', async () => {
+    await expect(
+      inserir({ ...BASE, status_uso: 'DISPONIVEL', observacao_descarte: 'sobrou da reversao' })
+    ).rejects.toThrow(/ck_descarte_observacao/)
+  })
+
   it('regra 5: motivo OUTRO sem observacao e recusado', async () => {
     await expect(
       inserir({ ...BASE, status_uso: 'DESCARTADO', motivo_descarte: 'OUTRO' })

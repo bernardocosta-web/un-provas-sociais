@@ -89,4 +89,36 @@ describe('reversoes nomeadas', () => {
       await c.end()
     }
   })
+
+  it('DESCARTADO(OUTRO) nao volta para DISPONIVEL limpando so o motivo: observacao sobra', async () => {
+    const c = await conectar()
+    try {
+      const dep = await c.query(
+        `insert into depoimento (texto_completo, fonte, status_uso, motivo_descarte, observacao_descarte)
+         values ('t', 'MANUAL', 'DESCARTADO', 'OUTRO', 'motivo livre') returning id`)
+      await expect(
+        c.query(
+          `update depoimento set status_uso = 'DISPONIVEL', motivo_descarte = null where id = $1`,
+          [dep.rows[0].id])
+      ).rejects.toThrow(/ck_descarte_observacao/)
+    } finally {
+      await c.end()
+    }
+  })
+
+  it('DESCARTADO(OUTRO) volta para DISPONIVEL limpando motivo e observacao', async () => {
+    const c = await conectar()
+    try {
+      const dep = await c.query(
+        `insert into depoimento (texto_completo, fonte, status_uso, motivo_descarte, observacao_descarte)
+         values ('t', 'MANUAL', 'DESCARTADO', 'OUTRO', 'motivo livre') returning id`)
+      const resultado = await c.query(
+        `update depoimento set status_uso = 'DISPONIVEL', motivo_descarte = null,
+           observacao_descarte = null where id = $1`,
+        [dep.rows[0].id])
+      expect(resultado.rowCount).toBe(1)
+    } finally {
+      await c.end()
+    }
+  })
 })
