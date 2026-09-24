@@ -2512,10 +2512,58 @@ git commit -m "feat(lib): compressao de imagem mirando o carrossel"
 > `supabase/migrations/0012_mesclar.sql` e `testes/rls/privilegios.test.js` de novo (além do
 > já listado abaixo).
 
+> **Quinta emenda (revisão do Marco 3, 2026-09-24) — onda única de correção,
+> `marco-3-fix-brief.md`.** Seis itens, todos aplicados sobre o código das emendas acima:
+> 1. **Mesclagem não pode perder o nome da perdedora** — cenário A/B/T: um nome/apelido a
+>    levar para a vencedora já é apelido de uma TERCEIRA instituição T. `mesclar_instituicoes`
+>    (`0012_mesclar.sql`) agora confere isso **antes** de mover qualquer linha e recusa com
+>    `raise exception` em pt-BR citando o apelido e a instituição dona (código próprio, o
+>    `P0001` padrão de `raise exception` sem `using errcode` — não `23505`, que teria o texto
+>    pisado pelo mapeamento genérico do item 2); o `on conflict (apelido) do nothing` continua
+>    valendo só quando quem já tem o apelido é a própria vencedora. Testes em
+>    `testes/rls/mesclar.test.js`: recusa e nada muda (A/B/T), aceita quando a dona já é a
+>    vencedora, mesclagem normal continua passando.
+> 2. **Mensagens de erro em pt-BR** (`src/lib/erros.js`) — além do `23505` já existente,
+>    `mensagemDeErro` mapeia `42501` e a mensagem de RLS do Storage (chega sem `code`) para
+>    "Sem permissão: este e-mail não está na lista da equipe.", `23514` para "Preencha o
+>    nome.", `23502` para "Campo obrigatório em branco.", e o erro de decodificação de imagem
+>    do `createImageBitmap` (`name` `InvalidStateError`/`EncodingError`, ou mensagem contendo
+>    "decode") para "Não foi possível ler a imagem; use PNG, JPG ou WebP.". Exceções próprias
+>    já em pt-BR sem código mapeado (ex.: a do item 1, `P0001`) continuam passando sem
+>    alteração — por isso o item 1 evita `23505`/`unique_violation`.
+> 3. **`nome_canonico` aparado** — `salvar_instituicao` grava `btrim(nome_canonico)` no insert
+>    e no update (a constraint `ck_instituicao_nome` já recusava o que sobra em branco, mas
+>    não impedia duas linhas para o mesmo nome com espaço a mais); `criarInstituicao`
+>    (`src/dados/referencia.js`) apara antes de enviar (caminho direto na tabela, sem passar
+>    pela RPC); `FormInstituicao.vue` apara o campo no envio e recusa nome só-espaços com a
+>    mesma mensagem do item 2 (`mensagemDeErro({ code: '23514' })`), sem viagem ao banco. Teste
+>    SQL em `testes/rls/salvar_instituicao.test.js`: `"UFJF "` colide (`23505`) com `"UFJF"`
+>    já cadastrada.
+> 4. **Seletor de arquivo de logo** (`FormInstituicao.vue`) —
+>    `accept="image/png,image/jpeg,image/webp"` e rótulo "Logo (PNG, JPG ou WebP — será
+>    convertida para WebP)", em vez de `accept="image/*"` genérico.
+> 5. **Testes negativos das duas RPCs** — em `testes/rls/`, `salvar_instituicao` e
+>    `mesclar_instituicoes` chamadas via `comoUsuario('estranho@exemplo.test')` (fora de
+>    `membro_equipe`) recusam e não alteram nada. Causa real observada (probe manual contra o
+>    banco local): `salvar_instituicao` levanta `42501` direto (o `insert` viola a `WITH CHECK`
+>    da RLS); `mesclar_instituicoes` levanta a mesma exceção "instituição vencedora ... não
+>    existe" que usaria para um id inválido, porque sua checagem inicial é um `SELECT` que a
+>    RLS apenas filtra em silêncio — não um "permission denied" separado.
+> 6. **Formulário aberto sobre instituição mesclada** (`Cadastros.vue`) — `@mesclado` (emitido
+>    por `ListaInstituicoes.vue`, sem payload de ids) agora sempre fecha `FormInstituicao.vue`
+>    além de recarregar a lista; mais simples e seguro que rastrear se a edição em curso era da
+>    vencedora ou da perdedora.
+>
+> Arquivos: cria `testes/rls/salvar_instituicao.test.js` (mais casos) e `testes/lib/erros.test.js`
+> (mais casos) — já listados acima; modifica de novo `supabase/migrations/0012_mesclar.sql`,
+> `src/lib/erros.js`, `src/dados/referencia.js`, `src/componentes/FormInstituicao.vue`,
+> `src/telas/Cadastros.vue`, `testes/rls/mesclar.test.js`.
+
 **Files:**
 - Create: `src/dados/referencia.js`, `src/telas/Cadastros.vue`, `src/componentes/ListaInstituicoes.vue`, `src/componentes/FormInstituicao.vue`, `supabase/migrations/0012_mesclar.sql`, `testes/rls/mesclar.test.js`
 - Modify: `src/App.vue`, `testes/rls/privilegios.test.js` (acrescentar `'mesclar_instituicoes(p_vencedor bigint, p_perdedor bigint)'` a `FUNCOES_DO_APP`, em ordem alfabética)
 - Fix rounds 1–2 (quarta emenda): cria `src/lib/erros.js`, `src/componentes/ListaProvas.vue`, `src/componentes/ListaSimples.vue`, `testes/rls/salvar_instituicao.test.js`, `testes/lib/erros.test.js`; acrescenta `salvar_instituicao` a `supabase/migrations/0012_mesclar.sql` e a `FUNCOES_DO_APP`; modifica `src/dados/referencia.js`, `src/componentes/FormInstituicao.vue`, `src/componentes/ListaInstituicoes.vue`, `src/telas/Cadastros.vue`.
+- Marco 3 fix (quinta emenda): mais casos em `testes/rls/mesclar.test.js`, `testes/rls/salvar_instituicao.test.js`, `testes/lib/erros.test.js`; modifica de novo `supabase/migrations/0012_mesclar.sql`, `src/lib/erros.js`, `src/dados/referencia.js`, `src/componentes/FormInstituicao.vue`, `src/telas/Cadastros.vue`.
 
 **Interfaces:**
 - Consumes: `src/lib/instituicoes.js` (Task 15), `src/lib/imagem.js` (Task 16)
@@ -3800,7 +3848,7 @@ git commit -m "feat: gravacao transacional do depoimento inteiro"
 - Modify: `src/App.vue`, `src/lib/instituicoes.js` e `testes/lib/instituicoes.test.js` (`comoOpcao`)
 
 **Interfaces:**
-- Consumes: `salvarDepoimento`, `carregarDepoimento`, `enviarPrint`, `removerPrint` (Task 19); `listarInstituicoes`, `listarSimples`, `criarSimples`, `criarInstituicao` (Task 17); `combina`, `ordenarPorRelevancia` (Task 15); `comprimir` (Task 16); `validarDepoimento`, `LIMITE_AVISO_RESUMO` (Task 18)
+- Consumes: `salvarDepoimento`, `carregarDepoimento`, `enviarPrint`, `removerPrint` (Task 19); `listarInstituicoes`, `listarSimples`, `criarSimples`, `criarInstituicao` (Task 17); `combina`, `ordenarPorRelevancia` (Task 15); `comprimir` (Task 16); `validarDepoimento`, `LIMITE_AVISO_RESUMO` (Task 18); `mensagemDeErro` (`src/lib/erros.js`, Task 17, quinta emenda) — o formulário da ficha reusa o mesmo mapeamento pt-BR de erros da tela de cadastros, em vez de mostrar `erro.message` cru
 - Produces: rota `#/ficha` e `#/ficha/:id`
 
 - [ ] **Step 1: `CamposDepoimento.vue` — cabeçalho da ficha**
