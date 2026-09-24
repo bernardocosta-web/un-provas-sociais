@@ -2609,6 +2609,21 @@ git commit -m "feat: cadastros de referencia com mesclagem de instituicoes"
 >     expect(validarDepoimento(ficha)).toContain('Nota do TRI precisa estar entre 0 e 1000.')
 >   })
 > ```
+>
+> **Implementação (2026-09-24).** Além do laço de notas acima, a implementação real cobre mais
+> dois pontos que a emenda original não detalhava. (1) Mirrors que faltavam: motivo de descarte
+> ou observação de descarte presentes fora de `DESCARTADO` também são erro — o sentido inverso de
+> `ck_descarte_motivo` e de `ck_descarte_observacao` (`0006_nucleo.sql`), senão reverter um
+> descarte deixa motivo/observação órfãos apontando para um depoimento ativo sem a ficha acusar
+> nada; `ck_ano` (1990–2100, `0007_participacao.sql`) veio como validação de faixa depois do check
+> de presença; e `escala`/`situacao` viraram obrigatórios na ficha porque são `not null` no banco
+> (nota e resultado). Observação em branco (só espaços) conta como vazia para a regra do `OUTRO`,
+> mas uma observação não vazia num depoimento não descartado é erro. (2) Valores de formulário
+> chegam como string (`'18'`, `' 20 '`, `''`), e comparar string teria bugs silenciosos (`'9' >
+> '20'` é `true` em JS). Por isso `valor_original`, `valor_maximo`, `ano` e os ids usados em
+> checagem de presença passam por um único helper de coerção numérica (`numero()`) antes de
+> qualquer comparação; string vazia ou não numérica conta como ausente. `src/lib/validacao.js`
+> (código real, com esses dois pontos) substitui o bloco de código deste Step 3 como referência.
 
 **Files:**
 - Create: `src/lib/validacao.js`, `testes/lib/validacao.test.js`
