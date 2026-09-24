@@ -24,8 +24,8 @@ describe('mensagemDeErro', () => {
   // em pt-BR, sem usar um code mapeado aqui (P0001, o padrao de `raise
   // exception` sem `using errcode`) — a mensagem tem de passar sem alteracao.
   it('mantem a mensagem de uma excecao propria em pt-BR (P0001), sem alteracao', () => {
-    expect(mensagemDeErro({ code: 'P0001', message: 'nao da para mesclar: o apelido "UFJF" ja pertence a "Terceira"' }))
-      .toBe('nao da para mesclar: o apelido "UFJF" ja pertence a "Terceira"')
+    expect(mensagemDeErro({ code: 'P0001', message: 'não dá para mesclar: o apelido "UFJF" já pertence a "Terceira"' }))
+      .toBe('não dá para mesclar: o apelido "UFJF" já pertence a "Terceira"')
   })
 
   it('traduz falta de permissao do Postgres (42501) para pt-BR', () => {

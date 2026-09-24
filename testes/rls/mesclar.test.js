@@ -75,7 +75,7 @@ describe('mesclar_instituicoes', () => {
       await c.query('begin')
       const { vencedor } = await cenario(c, 'MARCADORMESCLAR2')
       await expect(c.query('select public.mesclar_instituicoes($1, $1)', [vencedor]))
-        .rejects.toThrow('nao da para mesclar uma instituicao com ela mesma')
+        .rejects.toThrow('não dá para mesclar uma instituição com ela mesma')
     } finally {
       await c.query('rollback').catch(() => {})
       await c.end()
@@ -177,7 +177,7 @@ describe('mesclar_instituicoes', () => {
         JSON.stringify({ role: 'authenticated', email: 'estranho@exemplo.test' }),
       ])
       await expect(c.query('select public.mesclar_instituicoes($1, $2)', [ids.vencedor, ids.perdedor]))
-        .rejects.toMatchObject({ message: expect.stringContaining('nao existe') })
+        .rejects.toMatchObject({ message: expect.stringContaining('não existe') })
       // rollback to savepoint desfaz o SET LOCAL tambem: volta ao papel de
       // conectar() (sem RLS), o que permite conferir o estado abaixo.
       await c.query('rollback to savepoint antes_do_estranho')

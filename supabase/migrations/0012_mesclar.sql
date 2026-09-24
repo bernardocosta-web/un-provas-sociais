@@ -22,17 +22,17 @@ declare
   v_dono_conflito text;
 begin
   if p_vencedor = p_perdedor then
-    raise exception 'nao da para mesclar uma instituicao com ela mesma';
+    raise exception 'não dá para mesclar uma instituição com ela mesma';
   end if;
 
   if not exists (select 1 from public.instituicao where id = p_vencedor) then
-    raise exception 'instituicao vencedora % nao existe', p_vencedor;
+    raise exception 'instituição vencedora % não existe', p_vencedor;
   end if;
 
   select nome_canonico, logo_path into v_nome_perdedor, v_logo_perdedor
     from public.instituicao where id = p_perdedor;
   if v_nome_perdedor is null then
-    raise exception 'instituicao perdedora % nao existe', p_perdedor;
+    raise exception 'instituição perdedora % não existe', p_perdedor;
   end if;
 
   -- Confere ANTES de mover: nenhum apelido da perdedora, nem o proprio nome
@@ -59,7 +59,7 @@ begin
   -- Postgres; sem mapeamento para P0001, a mensagem original passa direto —
   -- ver item 2 da revisao do Marco 3 e testes/lib/erros.test.js).
   if v_apelido_conflito is not null then
-    raise exception 'nao da para mesclar: o apelido "%" ja pertence a "%"',
+    raise exception 'não dá para mesclar: o apelido "%" já pertence a "%"',
       v_apelido_conflito, v_dono_conflito;
   end if;
 
@@ -127,7 +127,7 @@ begin
       ativo = coalesce((p_dados->>'ativo')::boolean, ativo)
     where id = v_id;
     if not found then
-      raise exception 'instituicao % nao existe', v_id;
+      raise exception 'instituição % não existe', v_id;
     end if;
   end if;
 
