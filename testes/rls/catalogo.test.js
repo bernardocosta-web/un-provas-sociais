@@ -56,4 +56,45 @@ describe('catalogo', () => {
       expect(tabelas).toContain(esperada)
     }
   })
+
+  it('toda chamada a eh_membro_equipe() em politica esta dentro de (select ...)', async () => {
+    const cliente = await conectar()
+    const { rows } = await cliente.query(`
+      select schemaname, tablename, policyname, qual, with_check
+      from pg_policies
+      where schemaname in ('public', 'storage')
+      order by 1, 2, 3
+    `)
+    await cliente.end()
+
+    // Forma impressa por pg_get_expr para "(select public.eh_membro_equipe())",
+    // descoberta consultando pg_policies apos criar a politica de teste — nao
+    // adivinhada. O nome do schema some porque "public" esta no search_path.
+    const CHAMADA = 'eh_membro_equipe()'
+
+    // Toda ocorrencia da chamada (com parenteses) tem de vir logo depois de
+    // "SELECT " — a marca de que esta dentro do InitPlan. A varredura falha
+    // se a lista de politicas com a chamada estiver vazia: nao pode passar
+    // por engano so porque nao achou nenhuma.
+    let encontrouChamada = false
+    const semInitPlan = []
+    for (const linha of rows) {
+      for (const campo of ['qual', 'with_check']) {
+        const texto = linha[campo]
+        if (!texto || !texto.includes(CHAMADA)) continue
+        encontrouChamada = true
+        let pos = texto.indexOf(CHAMADA)
+        while (pos !== -1) {
+          const antes = texto.slice(0, pos)
+          if (!antes.endsWith('SELECT ')) {
+            semInitPlan.push(`${linha.schemaname}.${linha.tablename}.${linha.policyname} (${campo}): ${texto}`)
+          }
+          pos = texto.indexOf(CHAMADA, pos + CHAMADA.length)
+        }
+      }
+    }
+
+    expect(encontrouChamada).toBe(true)
+    expect(semInitPlan).toEqual([])
+  })
 })

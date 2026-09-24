@@ -84,8 +84,8 @@ begin
   loop
     execute format('alter table %I enable row level security', t);
     execute format(
-      'create policy %I on %I for all using (public.eh_membro_equipe())
-         with check (public.eh_membro_equipe())',
+      'create policy %I on %I for all using ((select public.eh_membro_equipe()))
+         with check ((select public.eh_membro_equipe()))',
       t || '_equipe', t);
   end loop;
 end $$;

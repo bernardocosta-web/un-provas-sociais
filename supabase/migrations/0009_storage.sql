@@ -7,13 +7,13 @@ on conflict (id) do nothing;
 
 -- Prints: leitura so para a equipe. URL assinada e gerada pelo cliente.
 create policy prints_leitura on storage.objects
-  for select using (bucket_id = 'prints' and public.eh_membro_equipe());
+  for select using (bucket_id = 'prints' and (select public.eh_membro_equipe()));
 
 create policy prints_escrita on storage.objects
-  for insert with check (bucket_id = 'prints' and public.eh_membro_equipe());
+  for insert with check (bucket_id = 'prints' and (select public.eh_membro_equipe()));
 
 create policy prints_remocao on storage.objects
-  for delete using (bucket_id = 'prints' and public.eh_membro_equipe());
+  for delete using (bucket_id = 'prints' and (select public.eh_membro_equipe()));
 
 -- Logos: leitura publica (marca de instituicao nao e dado sensivel, e a lista
 -- renderiza dezenas por pagina). Escrita restrita: bucket publico onde
@@ -25,10 +25,10 @@ create policy prints_remocao on storage.objects
 -- (insert ... returning e delete ... where dependem de SELECT para
 -- identificar a linha), quebrando o upload de logo pelo navegador.
 create policy logos_leitura on storage.objects
-  for select using (bucket_id = 'logos' and public.eh_membro_equipe());
+  for select using (bucket_id = 'logos' and (select public.eh_membro_equipe()));
 
 create policy logos_escrita on storage.objects
-  for insert with check (bucket_id = 'logos' and public.eh_membro_equipe());
+  for insert with check (bucket_id = 'logos' and (select public.eh_membro_equipe()));
 
 create policy logos_remocao on storage.objects
-  for delete using (bucket_id = 'logos' and public.eh_membro_equipe());
+  for delete using (bucket_id = 'logos' and (select public.eh_membro_equipe()));

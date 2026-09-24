@@ -25,5 +25,9 @@ $$;
 
 -- Membros leem a lista; ninguem escreve pela API.
 -- Adicionar ou remover alguem e SQL no painel, conforme docs/runbook-equipe.md.
+--
+-- eh_membro_equipe() dentro de um "select": recomendacao do advisor do
+-- Supabase (lint auth_rls_initplan) para o Postgres avaliar a funcao uma vez
+-- por consulta (InitPlan), nao uma vez por linha.
 create policy membro_equipe_leitura on membro_equipe
-  for select using (public.eh_membro_equipe());
+  for select using ((select public.eh_membro_equipe()));
