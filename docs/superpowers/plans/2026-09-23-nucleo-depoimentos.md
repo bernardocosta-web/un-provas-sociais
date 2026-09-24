@@ -2336,8 +2336,24 @@ git commit -m "feat(lib): compressao de imagem mirando o carrossel"
 > para o vencedor e a segunda inserção é ignorada sem erro. Nenhuma restauração adicional
 > de estado é necessária além dos dois upserts de instituição e do upsert da prova.
 
+> **Emenda pós-aprovação (2026-09-24).** Unidade M3-G: a `0011` agora é
+> `0011_privilegios.sql` (privilégios explícitos, paridade com o hospedado, que não expõe
+> tabelas novas automaticamente). A migração desta tarefa passa a ser
+> **`supabase/migrations/0012_mesclar.sql`** (nomes trocados abaixo) e termina com
+> `revoke all on function public.mesclar_instituicoes(bigint, bigint) from public;` e
+> `grant execute on function public.mesclar_instituicoes(bigint, bigint) to authenticated;`.
+> O `grant` é o que importa: sem ele o app recebe "permission denied" no hospedado e no
+> local. O `revoke ... from public` é redundante hoje — a `0011` já tirou o `EXECUTE` padrão
+> de `PUBLIC` para funções que `postgres` criar daqui em diante (revoke global de default
+> privileges) —, mas fica para a migração não depender de onde e por quem ela roda: se a
+> função for criada por outro papel, ou antes de o padrão valer, sem ele `PUBLIC` (e com ele
+> `anon`) ganharia `EXECUTE`. Os testes de catálogo de `testes/rls/privilegios.test.js` passam
+> a exigir isso: acrescentar `'mesclar_instituicoes(p_vencedor bigint, p_perdedor bigint)'` a
+> `FUNCOES_DO_APP` (em ordem alfabética); sem o `grant`, "só as funções do app têm EXECUTE
+> para authenticated" reprova.
+
 **Files:**
-- Create: `src/dados/referencia.js`, `src/telas/Cadastros.vue`, `src/componentes/ListaInstituicoes.vue`, `src/componentes/FormInstituicao.vue`, `supabase/migrations/0011_mesclar.sql`, `testes/rls/mesclar.test.js`
+- Create: `src/dados/referencia.js`, `src/telas/Cadastros.vue`, `src/componentes/ListaInstituicoes.vue`, `src/componentes/FormInstituicao.vue`, `supabase/migrations/0012_mesclar.sql`, `testes/rls/mesclar.test.js`
 - Modify: `src/App.vue`
 
 **Interfaces:**
@@ -2407,7 +2423,7 @@ Expected: FAIL — função não existe.
 
 - [ ] **Step 3: Escrever a migração**
 
-`supabase/migrations/0011_mesclar.sql`:
+`supabase/migrations/0012_mesclar.sql`:
 
 ```sql
 create or replace function public.mesclar_instituicoes(
@@ -2438,6 +2454,9 @@ begin
 
   delete from instituicao where id = p_perdedor;
 end $$;
+
+revoke all on function public.mesclar_instituicoes(bigint, bigint) from public;
+grant execute on function public.mesclar_instituicoes(bigint, bigint) to authenticated;
 ```
 
 - [ ] **Step 4: Escrever a camada de dados**
@@ -2951,8 +2970,19 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 > 4. O teste do Step 1 (`testes/rls/salvar.test.js`) deve incluir o caso "observação em branco em
 >    depoimento DISPONIVEL é gravada como NULL e aceita".
 
+> **Emenda pós-aprovação (2026-09-24).** Unidade M3-G: a `0011` agora é
+> `0011_privilegios.sql` e a da Task 17 é `0012_mesclar.sql`. A migração desta tarefa passa a
+> ser **`supabase/migrations/0013_salvar_depoimento.sql`** (nomes trocados abaixo) e termina
+> com `revoke all on function public.salvar_depoimento(jsonb) from public;` e
+> `grant execute on function public.salvar_depoimento(jsonb) to authenticated;` — mesmo
+> motivo da emenda M3-G da Task 17 (o `grant` é obrigatório; o `revoke` é redundante após a
+> `0011`, mas deixa a migração independente de quem a roda). Acrescentar
+> `'salvar_depoimento(p_ficha jsonb)'` a `FUNCOES_DO_APP` em `testes/rls/privilegios.test.js`
+> (em ordem alfabética). Nenhuma tabela nova: as tabelas que a função toca já têm
+> `select, insert, update, delete` para `authenticated` desde a `0011`.
+
 **Files:**
-- Create: `src/dados/depoimentos.js`, `supabase/migrations/0012_salvar_depoimento.sql`, `testes/rls/salvar.test.js`
+- Create: `src/dados/depoimentos.js`, `supabase/migrations/0013_salvar_depoimento.sql`, `testes/rls/salvar.test.js`
 
 **Interfaces:**
 - Consumes: `validarDepoimento` (Task 18)
@@ -3048,7 +3078,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Escrever a migração**
 
-`supabase/migrations/0012_salvar_depoimento.sql`:
+`supabase/migrations/0013_salvar_depoimento.sql`:
 
 ```sql
 create or replace function public.salvar_depoimento(p_ficha jsonb)
@@ -3145,6 +3175,9 @@ begin
 
   return v_id;
 end $$;
+
+revoke all on function public.salvar_depoimento(jsonb) from public;
+grant execute on function public.salvar_depoimento(jsonb) to authenticated;
 ```
 
 - [ ] **Step 4: Escrever a camada de dados**
