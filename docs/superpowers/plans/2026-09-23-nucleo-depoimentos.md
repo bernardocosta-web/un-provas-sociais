@@ -1765,6 +1765,8 @@ git commit -m "feat(lib): montagem de filtros e serializacao na URL"
 
 ### Task 13 — MANUAL (Bernardo): projeto Supabase e login Google
 
+> **Emenda pós-aprovação (2026-09-24).** O Step 3 (ligar o Google no painel) precisa replicar no hospedado o que o M1-A já fez no `config.toml` local para "login só pelo Google", ou o painel hospedado fica mais permissivo que o local. Em **Authentication → Providers**, além de ligar o Google: desligar **"Enable Email provider"** (não confundir com "Allow new users to sign up", que deve continuar **ligado** — é o global que permite o primeiro login do Google criar o usuário); conferir que **Phone** e **Anonymous** continuam desligados; e, no provedor de e-mail (mesmo desligado), deixar **"Confirm email"** e **"Secure email change"** ligados. Motivo em uma frase: `eh_membro_equipe()` confia no e-mail do JWT, e só um provedor único (Google) com e-mail comprovado garante que esse e-mail não foi forjado (ver invariante "Login só pelo Google" no CLAUDE.md).
+
 **Files:** nenhum.
 
 **Interfaces:**
@@ -2154,6 +2156,8 @@ git commit -m "feat(lib): compressao de imagem mirando o carrossel"
 
 ### Task 17: Tela de cadastros de referência, com mesclagem de instituições
 
+> **Emenda pós-aprovação (2026-09-24).** Os buckets (Task 10) não ganharam política de UPDATE — decisão do dono. Trocar a logo de uma instituição não é um `upload({ upsert: true })` sobre o nome antigo: com `upsert: true`, o Storage cai no caminho de UPDATE quando o nome já existe, e sem política de UPDATE a chamada é negada. `enviarLogo` abaixo muda para `upsert: false` com nome de arquivo único por envio (ex.: prefixado por timestamp/uuid), e a troca por uma logo nova vira **inserir com nome novo primeiro, gravar a referência (`logo_path`) na tabela, e só depois apagar o arquivo antigo** com `storage.from('logos').remove([antigoLogoPath])` — nessa ordem, nunca ao contrário, para não deixar `logo_path` apontando para um arquivo já apagado se algo falhar no meio do caminho. `FormInstituicao.vue` (Step 5) passa a guardar o `logo_path` antigo antes de enviar o novo e chama `remove` depois que `salvarInstituicao` confirmar.
+
 **Files:**
 - Create: `src/dados/referencia.js`, `src/telas/Cadastros.vue`, `src/componentes/ListaInstituicoes.vue`, `src/componentes/FormInstituicao.vue`, `supabase/migrations/0011_mesclar.sql`, `testes/rls/mesclar.test.js`
 - Modify: `src/App.vue`
@@ -2296,9 +2300,14 @@ export async function mesclarInstituicoes(idVencedor, idPerdedor) {
   if (error) throw error
 }
 
+// upsert: false — o bucket nao tem politica de UPDATE (decisao do dono); um
+// nome ja existente tem de ser negado, nunca sobrescrito. nomeArquivo precisa
+// ser unico por envio (ver emenda no cabecalho desta tarefa); a substituicao
+// de uma logo antiga e responsabilidade de quem chama (gravar a referencia
+// nova antes de remover o arquivo antigo).
 export async function enviarLogo(arquivo, nomeArquivo) {
   const { error } = await supabase.storage.from('logos').upload(nomeArquivo, arquivo, {
-    upsert: true, contentType: 'image/webp',
+    upsert: false, contentType: 'image/webp',
   })
   if (error) throw error
   return supabase.storage.from('logos').getPublicUrl(nomeArquivo).data.publicUrl
@@ -2493,6 +2502,8 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 ---
 
 ### Task 19: Gravação do depoimento inteiro
+
+> **Emenda pós-aprovação (2026-09-24).** Mesma decisão da emenda da Task 17: o bucket `prints` também não tem política de UPDATE, então `enviarPrint` abaixo muda para `upsert: false` com nome de arquivo único por envio. Trocar o print de um depoimento é: enviar o arquivo novo com nome novo, gravar o `print_path` novo em `depoimento` (via `salvarDepoimento`), e só então apagar o print antigo com `storage.from('prints').remove([antigoPrintPath])` — nunca antes de gravar a referência nova, para não deixar `print_path` apontando para um arquivo já apagado.
 
 **Files:**
 - Create: `src/dados/depoimentos.js`, `supabase/migrations/0012_salvar_depoimento.sql`, `testes/rls/salvar.test.js`
@@ -2724,9 +2735,13 @@ export async function buscarDepoimentos(filtros) {
   return data
 }
 
+// upsert: false — mesmo motivo do enviarLogo (Task 17): sem politica de
+// UPDATE no bucket, upsert: true cairia no caminho negado quando o nome ja
+// existisse. nomeArquivo precisa ser unico por envio; a remocao do print
+// antigo e responsabilidade de quem chama, depois de salvar a referencia nova.
 export async function enviarPrint(arquivo, nomeArquivo) {
   const { error } = await supabase.storage.from('prints').upload(nomeArquivo, arquivo, {
-    upsert: true, contentType: 'image/webp',
+    upsert: false, contentType: 'image/webp',
   })
   if (error) throw error
   return nomeArquivo
