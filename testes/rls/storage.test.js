@@ -14,13 +14,29 @@ beforeAll(async () => {
       ($1, 'Membro Ativo', true)
     on conflict (email) do nothing
   `, [MEMBRO])
+  // storage.objects nao tem mais uma unique constraint simples em
+  // (bucket_id, name): o upstream introduziu versionamento com indices
+  // UNICOS PARCIAIS (idx_objects_current_version, idx_objects_null_version)
+  // e objects_bucket_id_name_version_key (bucket_id, name, version). Um
+  // "on conflict (bucket_id, name)" nao casa com nenhum deles e falha com
+  // "no unique or exclusion constraint matching the ON CONFLICT
+  // specification". Por isso a semente usa insert...select...where not
+  // exists, que e idempotente sem depender de qual constraint interna do
+  // Storage esta ativa (o projeto hospedado pode estar em qualquer uma
+  // das duas versoes de schema).
   await cliente.query(`
-    insert into storage.objects (bucket_id, name) values ('prints', 'seed-leitura.png')
-    on conflict (bucket_id, name) do nothing
+    insert into storage.objects (bucket_id, name)
+    select 'prints', 'seed-leitura.png'
+    where not exists (
+      select 1 from storage.objects where bucket_id = 'prints' and name = 'seed-leitura.png'
+    )
   `)
   await cliente.query(`
-    insert into storage.objects (bucket_id, name) values ('logos', 'seed-logos.png')
-    on conflict (bucket_id, name) do nothing
+    insert into storage.objects (bucket_id, name)
+    select 'logos', 'seed-logos.png'
+    where not exists (
+      select 1 from storage.objects where bucket_id = 'logos' and name = 'seed-logos.png'
+    )
   `)
   await cliente.end()
 })
