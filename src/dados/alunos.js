@@ -1,5 +1,4 @@
 import { supabase } from './cliente.js'
-import { sugerirAlunos } from '../lib/alunos.js'
 
 export async function listarAlunos() {
   const { data, error } = await supabase
@@ -33,11 +32,4 @@ export async function criarAluno(nome, perfis = []) {
     throw erroPerfis
   }
   return { ...aluno, perfis: gravados }
-}
-
-// Conveniencia do brief: busca a lista e aplica a regra pura
-// (src/lib/alunos.js). O SeletorAluno ja tem a lista carregada e chama a
-// regra direto, sem nova consulta a cada tecla.
-export async function sugerirAluno(autorBruto, autorContatoBruto) {
-  return sugerirAlunos(autorBruto, autorContatoBruto, await listarAlunos())
 }
