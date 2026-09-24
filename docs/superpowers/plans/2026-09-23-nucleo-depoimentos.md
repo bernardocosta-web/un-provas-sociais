@@ -2156,7 +2156,7 @@ git commit -m "feat(lib): compressao de imagem mirando o carrossel"
 
 ### Task 17: Tela de cadastros de referência, com mesclagem de instituições
 
-> **Emenda pós-aprovação (2026-09-24).** Os buckets (Task 10) não ganharam política de UPDATE — decisão do dono. Trocar a logo de uma instituição não é um `upload({ upsert: true })` sobre o nome antigo: com `upsert: true`, o Storage cai no caminho de UPDATE quando o nome já existe, e sem política de UPDATE a chamada é negada. `enviarLogo` abaixo muda para `upsert: false` com nome de arquivo único por envio (ex.: prefixado por timestamp/uuid), e a troca por uma logo nova vira **inserir com nome novo primeiro, gravar a referência (`logo_path`) na tabela, e só depois apagar o arquivo antigo** com `storage.from('logos').remove([antigoLogoPath])` — nessa ordem, nunca ao contrário, para não deixar `logo_path` apontando para um arquivo já apagado se algo falhar no meio do caminho. `FormInstituicao.vue` (Step 5) passa a guardar o `logo_path` antigo antes de enviar o novo e chama `remove` depois que `salvarInstituicao` confirmar.
+> **Emenda pós-aprovação (2026-09-24).** Os buckets (Task 10) não ganharam política de UPDATE — decisão do dono. Trocar a logo de uma instituição não é um `upload({ upsert: true })` sobre o nome antigo: com `upsert: true`, o Storage cai no caminho de UPDATE quando o nome já existe, e sem política de UPDATE a chamada é negada. `enviarLogo` abaixo muda para `upsert: false`. Nome de arquivo único por envio, regra usada por todo chamador de `enviarLogo`/`enviarPrint` neste plano (Tasks 17, 19, 20): `nomeArquivo = \`${crypto.randomUUID()}.webp\`` (`crypto.randomUUID()` disponível em navegadores em `https`/`localhost`). A troca por uma logo nova vira **enviar o arquivo novo com nome novo, gravar a referência (`logo_path`) na tabela, e só depois de esse salvamento confirmar, apagar o arquivo antigo** com `storage.from('logos').remove([antigoLogoPath])` — nessa ordem, nunca ao contrário, para não deixar `logo_path` apontando para um arquivo já apagado. Se o salvamento falhar, quem chama apaga o arquivo **novo** recém-enviado (não o antigo) — sem isso, um envio bem-sucedido seguido de falha ao salvar deixa lixo órfão no bucket. Step 5 (`FormInstituicao.vue`) abaixo foi reescrito para descrever essa sequência.
 
 **Files:**
 - Create: `src/dados/referencia.js`, `src/telas/Cadastros.vue`, `src/componentes/ListaInstituicoes.vue`, `src/componentes/FormInstituicao.vue`, `supabase/migrations/0011_mesclar.sql`, `testes/rls/mesclar.test.js`
@@ -2329,7 +2329,7 @@ export async function criarSimples(tabela, nome) {
 
 - [ ] **Step 5: Montar as telas**
 
-`src/componentes/FormInstituicao.vue` — campos `nome_canonico`, lista de apelidos como chips com adicionar e remover, e envio de logo passando por `comprimir()` antes de `enviarLogo()`.
+`src/componentes/FormInstituicao.vue` — campos `nome_canonico`, lista de apelidos como chips com adicionar e remover, e envio de logo passando por `comprimir()` antes de `enviarLogo()`. Ao trocar a logo de uma instituição já existente: guardar o `logo_path` antigo; enviar o arquivo novo com nome único (`` `${crypto.randomUUID()}.webp` ``, ver emenda no cabeçalho desta tarefa) via `enviarLogo()`; gravar a instituição com o `logo_path` novo via `salvarInstituicao()`; só depois desse `salvarInstituicao()` ter sucesso, apagar o arquivo antigo com `storage.from('logos').remove([antigo])`. Se `salvarInstituicao()` falhar, apagar o arquivo **novo** que acabou de ser enviado (`remove([novo])`), não o antigo — a logo que já funcionava continua valendo.
 
 `src/componentes/ListaInstituicoes.vue` — tabela com logo, nome, apelidos e botão **Mesclar**, que abre a escolha de vencedor e chama `mesclarInstituicoes`.
 
@@ -2503,7 +2503,7 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 
 ### Task 19: Gravação do depoimento inteiro
 
-> **Emenda pós-aprovação (2026-09-24).** Mesma decisão da emenda da Task 17: o bucket `prints` também não tem política de UPDATE, então `enviarPrint` abaixo muda para `upsert: false` com nome de arquivo único por envio. Trocar o print de um depoimento é: enviar o arquivo novo com nome novo, gravar o `print_path` novo em `depoimento` (via `salvarDepoimento`), e só então apagar o print antigo com `storage.from('prints').remove([antigoPrintPath])` — nunca antes de gravar a referência nova, para não deixar `print_path` apontando para um arquivo já apagado.
+> **Emenda pós-aprovação (2026-09-24).** Mesma decisão da emenda da Task 17: o bucket `prints` também não tem política de UPDATE, então `enviarPrint` abaixo muda para `upsert: false`, com o mesmo nome de arquivo único descrito na emenda da Task 17 (`` `${crypto.randomUUID()}.webp` ``). A orquestração da troca (enviar o novo → salvar a referência → só então apagar o antigo; se salvar falhar, apagar o novo em vez do antigo) fica a cargo de quem chama `enviarPrint` — ver a emenda da Task 20, onde essa chamada é combinada com `salvarDepoimento` na tela da ficha.
 
 **Files:**
 - Create: `src/dados/depoimentos.js`, `supabase/migrations/0012_salvar_depoimento.sql`, `testes/rls/salvar.test.js`
@@ -2771,6 +2771,8 @@ git commit -m "feat: gravacao transacional do depoimento inteiro"
 
 ### Task 20: Tela da ficha do depoimento
 
+> **Emenda pós-aprovação (2026-09-24).** É aqui, não na Task 19, que `enviarPrint` e `salvarDepoimento` se combinam numa troca de arquivo de verdade (o bucket `prints` não tem política de UPDATE — ver emenda da Task 19). Ao trocar o print de um depoimento já existente: guardar o `print_path` antigo; enviar o print novo com nome único (`` `${crypto.randomUUID()}.webp` ``, regra da emenda da Task 17) via `enviarPrint()`; chamar `salvarDepoimento()` com o `print_path` novo; só depois desse `salvarDepoimento()` ter sucesso, apagar o print antigo com `storage.from('prints').remove([antigo])`. Se `salvarDepoimento()` falhar, apagar o print **novo** que acabou de ser enviado (`remove([novo])`), não o antigo — o print que já estava salvo continua valendo. Step 5 (`Ficha.vue`) abaixo foi reescrito para descrever essa sequência.
+
 **Files:**
 - Create: `src/telas/Ficha.vue`, `src/componentes/CamposDepoimento.vue`, `src/componentes/ListaParticipacoes.vue`, `src/componentes/CampoPrint.vue`, `src/componentes/SeletorAluno.vue`, `src/dados/alunos.js`
 - Modify: `src/App.vue`
@@ -2888,7 +2890,7 @@ A sugestão **nunca liga sozinha.** Ela mostra "parece ser Fulano — ligar?" e 
 
 - [ ] **Step 5: `Ficha.vue` — montar tudo e salvar**
 
-Junta os componentes, chama `validarDepoimento` antes de gravar, exibe os erros numa lista e só então chama `salvarDepoimento`.
+Junta os componentes, chama `validarDepoimento` antes de gravar, exibe os erros numa lista e só então chama `salvarDepoimento`. Quando há print novo (colado/arrastado/escolhido em `CampoPrint.vue`) substituindo um print antigo (edição de um depoimento já existente): guardar o `print_path` antigo; enviar o novo com nome único (`` `${crypto.randomUUID()}.webp` ``, ver emenda no cabeçalho desta tarefa) via `enviarPrint()`; chamar `salvarDepoimento()` com o `print_path` novo; só depois desse `salvarDepoimento()` confirmar, apagar o print antigo com `storage.from('prints').remove([antigo])`. Se `salvarDepoimento()` falhar, apagar o print **novo** (`remove([novo])`), não o antigo.
 
 - [ ] **Step 6: Verificar à mão**
 
