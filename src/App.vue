@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { usuarioAtual, aoMudarSessao, sair } from './dados/sessao.js'
 import Login from './telas/Login.vue'
+import Cadastros from './telas/Cadastros.vue'
 
 const usuario = ref(null)
 const carregando = ref(true)
@@ -22,6 +23,6 @@ onMounted(async () => {
       <span>{{ usuario.email }}</span>
       <button @click="sair">Sair</button>
     </header>
-    <p>Autenticado.</p>
+    <Cadastros />
   </main>
 </template>
