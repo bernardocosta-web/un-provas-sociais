@@ -1,12 +1,12 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { mensagemDeErro } from '../lib/erros.js'
-import { urlDaLogo, mesclarInstituicoes } from '../dados/referencia.js'
+import { urlDaLogo, mesclarInstituicoes, removerInstituicao } from '../dados/referencia.js'
 
 const props = defineProps({
   instituicoes: { type: Array, required: true },
 })
-const emit = defineEmits(['editar', 'mesclado'])
+const emit = defineEmits(['editar', 'mesclado', 'removida'])
 
 // Fluxo de mesclagem: escolhe a perdedora na tabela, depois a vencedora numa
 // lista à parte (nunca a mesma linha). A remoção da logo da perdedora no
@@ -15,6 +15,27 @@ const perdedora = ref(null)
 const vencedoraId = ref('')
 const erro = ref('')
 const mesclando = ref(false)
+
+// Remoção: sem uso, some direto; em uso, o banco recusa (P0001, pt-BR,
+// citando onde está em uso e sugerindo Mesclar) e a mensagem passa como está
+// (mensagemDeErro). Erro fica ao lado da tabela, não preso ao fluxo de
+// mesclagem (que só existe quando `perdedora` está definida).
+const erroRemocao = ref('')
+const removendoId = ref(null)
+
+async function remover(instituicao) {
+  if (!confirm(`Remover "${instituicao.nome_canonico}"? Isso não pode ser desfeito.`)) return
+  erroRemocao.value = ''
+  removendoId.value = instituicao.id
+  try {
+    await removerInstituicao(instituicao.id)
+    emit('removida', instituicao.id)
+  } catch (e) {
+    erroRemocao.value = mensagemDeErro(e)
+  } finally {
+    removendoId.value = null
+  }
+}
 
 const candidatasVencedora = computed(() =>
   props.instituicoes.filter((i) => i.id !== perdedora.value?.id))
@@ -62,10 +83,13 @@ async function confirmarMesclagem() {
         <td>
           <button type="button" @click="emit('editar', i)">Editar</button>
           <button type="button" @click="iniciarMesclagem(i)">Mesclar</button>
+          <button type="button" :disabled="removendoId === i.id" @click="remover(i)">Remover</button>
         </td>
       </tr>
     </tbody>
   </table>
+
+  <p v-if="erroRemocao" role="alert">{{ erroRemocao }}</p>
 
   <div v-if="perdedora" role="group" aria-label="Mesclar instituição">
     <p>Mesclar "{{ perdedora.nome_canonico }}" em:</p>

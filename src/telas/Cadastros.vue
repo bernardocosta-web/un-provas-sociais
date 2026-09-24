@@ -61,6 +61,17 @@ async function aoMesclarInstituicao() {
   await carregarInstituicoes()
 }
 
+// Remover apaga a instituicao (remover_instituicao, 0014). Se o formulario
+// estiver aberto justamente sobre ela, fechar — os campos mostrariam dados
+// de um registro que nao existe mais.
+async function aoRemoverInstituicao(id) {
+  if (instituicaoEditando.value?.id === id) {
+    mostrarFormInstituicao.value = false
+    instituicaoEditando.value = null
+  }
+  await carregarInstituicoes()
+}
+
 onMounted(carregarInstituicoes)
 </script>
 
@@ -97,6 +108,7 @@ onMounted(carregarInstituicoes)
         :instituicoes="instituicoes"
         @editar="editarInstituicao"
         @mesclado="aoMesclarInstituicao"
+        @removida="aoRemoverInstituicao"
       />
     </div>
 

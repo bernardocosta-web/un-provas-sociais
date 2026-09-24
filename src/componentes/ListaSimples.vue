@@ -4,7 +4,7 @@
 // Provas tem instituição opcional e usa ListaProvas.vue, não este.
 import { ref, onMounted } from 'vue'
 import { mensagemDeErro } from '../lib/erros.js'
-import { listarSimples, criarSimples } from '../dados/referencia.js'
+import { listarSimples, criarSimples, removerCadastro } from '../dados/referencia.js'
 
 const props = defineProps({
   tabela: { type: String, required: true },
@@ -16,6 +16,7 @@ const nomeNovo = ref('')
 const carregando = ref(true)
 const criando = ref(false)
 const erro = ref('')
+const removendoId = ref(null)
 
 async function carregar() {
   carregando.value = true
@@ -45,6 +46,23 @@ async function criar() {
   }
 }
 
+// Sem uso, some direto; em uso (resultado/nota, conforme a tabela) o banco
+// recusa (P0001, pt-BR, com a contagem) e a mensagem passa como está
+// (mensagemDeErro).
+async function remover(item) {
+  if (!confirm(`Remover "${item.nome}"? Isso não pode ser desfeito.`)) return
+  erro.value = ''
+  removendoId.value = item.id
+  try {
+    await removerCadastro(props.tabela, item.id)
+    await carregar()
+  } catch (e) {
+    erro.value = mensagemDeErro(e)
+  } finally {
+    removendoId.value = null
+  }
+}
+
 onMounted(carregar)
 </script>
 
@@ -53,7 +71,10 @@ onMounted(carregar)
     <h2>{{ titulo }}</h2>
     <p v-if="carregando">Carregando…</p>
     <ul v-else>
-      <li v-for="item in itens" :key="item.id">{{ item.nome }}</li>
+      <li v-for="item in itens" :key="item.id">
+        {{ item.nome }}
+        <button type="button" :disabled="removendoId === item.id" @click="remover(item)">Remover</button>
+      </li>
     </ul>
 
     <form @submit.prevent="criar">

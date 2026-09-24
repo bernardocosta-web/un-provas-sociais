@@ -4,7 +4,7 @@
 // em vez de forçar o genérico a conhecer instituição.
 import { ref, onMounted } from 'vue'
 import { mensagemDeErro } from '../lib/erros.js'
-import { listarProvas, criarProva, listarInstituicoes } from '../dados/referencia.js'
+import { listarProvas, criarProva, listarInstituicoes, removerCadastro } from '../dados/referencia.js'
 
 const provas = ref([])
 const instituicoesAtivas = ref([])
@@ -13,6 +13,7 @@ const instituicaoId = ref('')
 const carregando = ref(true)
 const criando = ref(false)
 const erro = ref('')
+const removendoId = ref(null)
 
 async function carregar() {
   carregando.value = true
@@ -48,6 +49,22 @@ async function criar() {
   }
 }
 
+// Sem uso, some direto; em uso (participacao) o banco recusa (P0001, pt-BR,
+// com a contagem) e a mensagem passa como está (mensagemDeErro).
+async function remover(prova) {
+  if (!confirm(`Remover "${prova.nome}"? Isso não pode ser desfeito.`)) return
+  erro.value = ''
+  removendoId.value = prova.id
+  try {
+    await removerCadastro('prova', prova.id)
+    await carregar()
+  } catch (e) {
+    erro.value = mensagemDeErro(e)
+  } finally {
+    removendoId.value = null
+  }
+}
+
 onMounted(carregar)
 </script>
 
@@ -59,6 +76,7 @@ onMounted(carregar)
       <li v-for="prova in provas" :key="prova.id">
         {{ prova.nome }}
         <span v-if="prova.instituicao_nome">— {{ prova.instituicao_nome }}</span>
+        <button type="button" :disabled="removendoId === prova.id" @click="remover(prova)">Remover</button>
       </li>
     </ul>
 

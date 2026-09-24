@@ -43,6 +43,26 @@ export async function mesclarInstituicoes(idVencedor, idPerdedor) {
   }
 }
 
+// A funcao devolve o logo_path da instituicao removida (ou null); o arquivo
+// so e removido do bucket depois de a remocao confirmar (SQL nao pode apagar
+// de storage.objects — so a Storage API), igual mesclarInstituicoes. Falha
+// nessa remocao nao desfaz a remocao, que ja valeu: so avisa no console.
+export async function removerInstituicao(id) {
+  const { data: logo, error } = await supabase.rpc('remover_instituicao', { p_id: id })
+  if (error) throw error
+  if (logo) {
+    const { error: erroRemocao } = await supabase.storage.from('logos').remove([logo])
+    if (erroRemocao) console.warn('Logo da instituição removida ficou no bucket:', erroRemocao.message)
+  }
+}
+
+// tabela: 'prova' | 'curso' | 'materia' (validado no banco contra uma lista
+// fechada, remover_cadastro_simples, 0014).
+export async function removerCadastro(tabela, id) {
+  const { error } = await supabase.rpc('remover_cadastro_simples', { p_tabela: tabela, p_id: id })
+  if (error) throw error
+}
+
 // upsert: false — o bucket nao tem politica de UPDATE (decisao do dono); um
 // nome ja existente tem de ser negado, nunca sobrescrito. nomeArquivo precisa
 // ser unico por envio (ver emenda no cabecalho desta tarefa); a substituicao
