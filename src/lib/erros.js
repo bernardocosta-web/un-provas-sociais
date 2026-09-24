@@ -1,3 +1,5 @@
+import { STATUS } from './rotulos.js'
+
 // Erros de RPC/PostgREST chegam com o SQLSTATE do Postgres em `code`
 // (supabase-js repassa isso do corpo do erro). Traduz os casos comuns para
 // pt-BR; o resto usa a mensagem original — as nossas próprias funções (ex.:
@@ -63,13 +65,8 @@ const PADRAO_NOME_CHECK = /check constraint "([^"]+)"/
 // valida_transicao_status (0008) também usa check_violation, mas sem nome de
 // constraint: 'transicao de status invalida: DISPONIVEL -> FEITO'.
 const PADRAO_TRANSICAO = /transicao de status invalida: (\w+) -> (\w+)/
-const ROTULOS_STATUS = {
-  DISPONIVEL: 'Disponível',
-  EM_PRODUCAO: 'Em produção',
-  FEITO: 'Feito',
-  POSTADO: 'Postado',
-  DESCARTADO: 'Descartado',
-}
+// Os mesmos rotulos do select de status da ficha (rotulos.js).
+const ROTULOS_STATUS = Object.fromEntries(STATUS.map((s) => [s.valor, s.rotulo]))
 const rotuloStatus = (status) => ROTULOS_STATUS[status] ?? status
 
 function mensagemDeCheck(mensagem) {

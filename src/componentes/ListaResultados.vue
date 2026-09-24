@@ -36,7 +36,7 @@ function remover(indice) {
 <template>
   <fieldset>
     <legend>Resultados</legend>
-    <div v-for="(resultado, indice) in resultados" :key="indice">
+    <div v-for="(resultado, indice) in resultados" :key="resultado._chave">
       <CaixaBusca
         v-model="resultado.instituicao_id"
         rotulo="Instituição"

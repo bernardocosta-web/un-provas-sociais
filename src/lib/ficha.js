@@ -22,7 +22,9 @@ function textoOuNulo(valor) {
   return String(valor).trim() === '' ? null : valor
 }
 
-function prepararNota(nota) {
+// _chave e so do formulario (a :key das listas, formulario.js): sai aqui,
+// junto com o resto do que o banco nao conhece como coluna.
+function prepararNota({ _chave, ...nota }) {
   return {
     ...nota,
     materia_id: numeroOuNulo(nota.materia_id),
@@ -33,7 +35,7 @@ function prepararNota(nota) {
   }
 }
 
-function prepararResultado(resultado) {
+function prepararResultado({ _chave, ...resultado }) {
   return {
     ...resultado,
     instituicao_id: numeroOuNulo(resultado.instituicao_id),
@@ -41,7 +43,7 @@ function prepararResultado(resultado) {
   }
 }
 
-function prepararParticipacao(participacao) {
+function prepararParticipacao({ _chave, ...participacao }) {
   return {
     ...participacao,
     prova_id: numeroOuNulo(participacao.prova_id),

@@ -169,3 +169,19 @@ describe('prepararFicha', () => {
     expect(r.tipos).not.toBe(original.tipos)
   })
 })
+
+describe('prepararFicha e a chave local de lista', () => {
+  it('_chave (so do formulario, para :key) nunca vai para o banco', () => {
+    const ficha = {
+      ...BASE,
+      participacoes: [{
+        _chave: 1, prova_id: '1', ano: '2025',
+        notas: [{ _chave: 2, materia_id: '1', valor_original: '9', escala: 'TRI' }],
+        resultados: [{ _chave: 3, instituicao_id: '4', curso_id: '', situacao: 'APROVADO' }],
+      }],
+    }
+    const pronta = prepararFicha(ficha)
+    expect(JSON.stringify(pronta)).not.toContain('_chave')
+    expect(ficha.participacoes[0]._chave).toBe(1)
+  })
+})

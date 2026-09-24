@@ -30,16 +30,43 @@ export function novaFicha() {
   }
 }
 
+// _chave: identidade local para a :key do v-for (indice deslocaria o estado
+// dos combobox ao remover um item do meio). Nunca vai para o banco:
+// prepararFicha (ficha.js) a descarta.
+let ultimaChave = 0
+const novaChave = () => ++ultimaChave
+
 export function novaParticipacao() {
-  return { prova_id: '', ano: '', notas: [], resultados: [] }
+  return { _chave: novaChave(), prova_id: '', ano: '', notas: [], resultados: [] }
 }
 
 export function novaNota(prova) {
-  return { materia_id: '', valor_original: '', escala: escalaPadrao(prova), valor_maximo: '' }
+  return {
+    _chave: novaChave(), materia_id: '', valor_original: '',
+    escala: escalaPadrao(prova), valor_maximo: '',
+  }
 }
 
 export function novoResultado() {
-  return { instituicao_id: '', curso_id: '', situacao: '' }
+  return { _chave: novaChave(), instituicao_id: '', curso_id: '', situacao: '' }
+}
+
+// Ficha vinda do banco (carregarDepoimento): da _chave a quem nao tem.
+// Altera e devolve o mesmo objeto.
+export function comChaves(ficha) {
+  const marcar = (item) => { item._chave ??= novaChave() }
+  for (const participacao of ficha.participacoes ?? []) {
+    marcar(participacao)
+    ;(participacao.notas ?? []).forEach(marcar)
+    ;(participacao.resultados ?? []).forEach(marcar)
+  }
+  return ficha
+}
+
+// Edicao (#/ficha/:id) cujo carregamento falhou nao pode mostrar o
+// formulario: a ficha em branco, sem id, salvaria um depoimento NOVO.
+export function podeEditar(id, carregamentoFalhou) {
+  return id == null || !carregamentoFalhou
 }
 
 // ck_autorizacao (0006): sem autorizacao, so descartado por falta dela.

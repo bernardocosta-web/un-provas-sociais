@@ -74,7 +74,7 @@ function remover(indice) {
   <section>
     <h3>Participações</h3>
     <p v-if="erro" role="alert">{{ erro }}</p>
-    <article v-for="(participacao, indice) in participacoes" :key="indice">
+    <article v-for="(participacao, indice) in participacoes" :key="participacao._chave">
       <CaixaBusca
         :model-value="participacao.prova_id"
         rotulo="Prova"

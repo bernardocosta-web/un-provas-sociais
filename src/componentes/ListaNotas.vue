@@ -24,7 +24,7 @@ function remover(indice) {
 <template>
   <fieldset>
     <legend>Notas</legend>
-    <div v-for="(nota, indice) in notas" :key="indice">
+    <div v-for="(nota, indice) in notas" :key="nota._chave">
       <label>
         Matéria
         <select v-model="nota.materia_id">

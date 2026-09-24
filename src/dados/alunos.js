@@ -28,7 +28,8 @@ export async function criarAluno(nome, perfis = []) {
   const { data: gravados, error: erroPerfis } = await supabase
     .from('aluno_perfil').insert(linhas).select('plataforma, identificador, url')
   if (erroPerfis) {
-    await supabase.from('aluno').delete().eq('id', aluno.id)
+    const { error: erroLimpeza } = await supabase.from('aluno').delete().eq('id', aluno.id)
+    if (erroLimpeza) console.warn('Aluno criado sem perfil ficou no banco:', erroLimpeza.message)
     throw erroPerfis
   }
   return { ...aluno, perfis: gravados }

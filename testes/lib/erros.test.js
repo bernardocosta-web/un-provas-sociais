@@ -156,3 +156,13 @@ describe('mensagemDeErro', () => {
     })).toBe('Não foi possível remover: o cadastro está em uso.')
   })
 })
+
+describe('mensagemDeErro usa os rotulos de status de rotulos.js', () => {
+  it('cada status do enum sai com o rotulo da ficha', async () => {
+    const { STATUS } = await import('../../src/lib/rotulos.js')
+    const [de, para] = [STATUS[1], STATUS[3]]
+    const erro = { code: '23514', message: `transicao de status invalida: ${de.valor} -> ${para.valor}` }
+    expect(mensagemDeErro(erro))
+      .toBe(`Não é possível mudar o status de "${de.rotulo}" para "${para.rotulo}".`)
+  })
+})

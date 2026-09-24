@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   escalaPadrao, aplicarProva, novaFicha, novaParticipacao, novaNota, novoResultado,
-  mudarAutorizacao, mudarStatus,
+  mudarAutorizacao, mudarStatus, podeEditar, comChaves,
 } from '../../src/lib/formulario.js'
 import { validarDepoimento } from '../../src/lib/validacao.js'
 
@@ -56,7 +56,7 @@ describe('fabricas', () => {
     expect(novaNota(null).escala).toBe('')
   })
   it('resultado novo em branco', () => {
-    expect(novoResultado()).toEqual({ instituicao_id: '', curso_id: '', situacao: '' })
+    expect(novoResultado()).toMatchObject({ instituicao_id: '', curso_id: '', situacao: '' })
   })
 })
 
@@ -95,5 +95,36 @@ describe('mudarStatus', () => {
     mudarStatus(ficha, 'DESCARTADO')
     expect(ficha.status_uso).toBe('DESCARTADO')
     expect(ficha.observacao_descarte).toBe('nota')
+  })
+})
+
+describe('podeEditar', () => {
+  it('ficha nova sempre edita', () => {
+    expect(podeEditar(null, false)).toBe(true)
+    expect(podeEditar(null, true)).toBe(true)
+  })
+  it('edicao so edita se o carregamento deu certo (senao salvar criaria outro depoimento)', () => {
+    expect(podeEditar(12, false)).toBe(true)
+    expect(podeEditar(12, true)).toBe(false)
+  })
+})
+
+describe('chaves locais de lista', () => {
+  it('fabricas dao _chave unica a participacao, nota e resultado', () => {
+    const chaves = [novaParticipacao(), novaParticipacao(), novaNota(null), novoResultado()]
+      .map((item) => item._chave)
+    expect(chaves.every((c) => c != null)).toBe(true)
+    expect(new Set(chaves).size).toBe(4)
+  })
+  it('comChaves poe _chave no que veio do banco, sem trocar a que ja existe', () => {
+    const ficha = {
+      participacoes: [{ id: 3, _chave: 'fixa', notas: [{ id: 5 }], resultados: [{ id: 6 }] }],
+    }
+    const pronta = comChaves(ficha)
+    expect(pronta).toBe(ficha)
+    const [p] = ficha.participacoes
+    expect(p._chave).toBe('fixa')
+    expect(p.notas[0]._chave).not.toBeUndefined()
+    expect(p.resultados[0]._chave).not.toBe(p.notas[0]._chave)
   })
 })

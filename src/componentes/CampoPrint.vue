@@ -51,6 +51,13 @@ async function receber(arquivo) {
   }
 }
 
+// Zera o input depois de ler: escolher o MESMO arquivo de novo (ex.: depois
+// de um erro) tem de disparar change outra vez.
+function aoEscolher(evento) {
+  receber(evento.target.files[0])
+  evento.target.value = ''
+}
+
 function aoColar(evento) {
   const item = [...(evento.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'))
   if (item) receber(item.getAsFile())
@@ -66,7 +73,7 @@ onUnmounted(() => {
 <template>
   <div class="campo-print" @drop.prevent="receber($event.dataTransfer.files[0])" @dragover.prevent>
     <p>Print: arraste, escolha um arquivo ou <strong>cole com Ctrl+V</strong>.</p>
-    <input type="file" accept="image/*" @change="receber($event.target.files[0])" />
+    <input type="file" accept="image/*" @change="aoEscolher" />
     <template v-if="previa">
       <img :src="previa" alt="Prévia do print novo" />
       <small v-if="tamanhos">{{ tamanhos.antes }} KB → {{ tamanhos.depois }} KB</small>

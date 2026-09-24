@@ -77,4 +77,16 @@ describe('criarAluno', () => {
     expect(chamadas).toContainEqual(['aluno', 'delete'])
     expect(chamadas).toContainEqual(['aluno', 'eq', 'id', 7])
   })
+
+  it('limpeza recusada avisa no console e o erro original continua', async () => {
+    const erro = { code: '42501', message: 'negado' }
+    respostas['aluno.insert'] = { data: { id: 8, nome_exibicao: 'Duda' }, error: null }
+    respostas['aluno_perfil.insert'] = { data: null, error: erro }
+    respostas['aluno.delete'] = { data: null, error: { message: 'sem rede' } }
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await expect(criarAluno('Duda', [{ plataforma: 'OUTRO', identificador: 'duda' }]))
+      .rejects.toBe(erro)
+    expect(aviso).toHaveBeenCalledWith('Aluno criado sem perfil ficou no banco:', 'sem rede')
+    aviso.mockRestore()
+  })
 })
