@@ -144,6 +144,16 @@ describe('prepararFicha', () => {
     expect(r.participacoes[0].resultados).toEqual([])
   })
 
+  // Duplicado viraria 23505 ("ja existe um cadastro com esse nome") e
+  // branco viraria 22P02 (valor de enum invalido) no banco.
+  it('tipos e canais sem repetidos nem brancos, na ordem da primeira aparicao', () => {
+    const r = prepararFicha({ ...BASE,
+      tipos: ['ELOGIO', '', 'APROVACAO', 'ELOGIO', '  ', null],
+      canais: ['SUPERIORES', 'SUPERIORES', undefined, ''] })
+    expect(r.tipos).toEqual(['ELOGIO', 'APROVACAO'])
+    expect(r.canais).toEqual(['SUPERIORES'])
+  })
+
   it('nao altera o objeto recebido', () => {
     const original = { ...BASE, resumo_curto: '', aluno_id: '7',
       participacoes: [{ prova_id: '1', ano: '2025',

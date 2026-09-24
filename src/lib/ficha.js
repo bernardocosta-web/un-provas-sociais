@@ -51,11 +51,17 @@ function prepararParticipacao(participacao) {
   }
 }
 
+// tipos/canais: sem brancos (seriam valor de enum invalido, 22P02) e sem
+// repetidos (seriam chave duplicada, 23505), na ordem da primeira aparicao.
+function listaDeValores(lista) {
+  return [...new Set((lista ?? []).filter((v) => textoOuNulo(v) !== null))]
+}
+
 export function prepararFicha(ficha) {
   const pronta = {
     ...ficha,
-    tipos: [...(ficha.tipos ?? [])],
-    canais: [...(ficha.canais ?? [])],
+    tipos: listaDeValores(ficha.tipos),
+    canais: listaDeValores(ficha.canais),
     participacoes: (ficha.participacoes ?? []).map(prepararParticipacao),
   }
   if ('id' in ficha) pronta.id = numeroOuNulo(ficha.id)

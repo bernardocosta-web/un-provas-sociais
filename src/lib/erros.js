@@ -60,7 +60,24 @@ const MENSAGENS_POR_CHECK = {
 }
 const PADRAO_NOME_CHECK = /check constraint "([^"]+)"/
 
+// valida_transicao_status (0008) também usa check_violation, mas sem nome de
+// constraint: 'transicao de status invalida: DISPONIVEL -> FEITO'.
+const PADRAO_TRANSICAO = /transicao de status invalida: (\w+) -> (\w+)/
+const ROTULOS_STATUS = {
+  DISPONIVEL: 'Disponível',
+  EM_PRODUCAO: 'Em produção',
+  FEITO: 'Feito',
+  POSTADO: 'Postado',
+  DESCARTADO: 'Descartado',
+}
+const rotuloStatus = (status) => ROTULOS_STATUS[status] ?? status
+
 function mensagemDeCheck(mensagem) {
+  const transicao = PADRAO_TRANSICAO.exec(mensagem ?? '')
+  if (transicao) {
+    const [, de, para] = transicao
+    return `Não é possível mudar o status de "${rotuloStatus(de)}" para "${rotuloStatus(para)}".`
+  }
   const nome = PADRAO_NOME_CHECK.exec(mensagem ?? '')?.[1]
   return (nome && Object.hasOwn(MENSAGENS_POR_CHECK, nome) && MENSAGENS_POR_CHECK[nome])
     || MENSAGEM_CHECK_GENERICA

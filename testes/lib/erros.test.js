@@ -99,6 +99,30 @@ describe('mensagemDeErro', () => {
         .toBe('Algum dado não obedece às regras do cadastro.')
     })
 
+    // valida_transicao_status (0008) levanta check_violation sem nome de
+    // constraint; a mensagem traz os dois status, que viram rotulos pt-BR.
+    it('transicao de status recusada pelo trigger explica de onde para onde', () => {
+      expect(mensagemDeErro({
+        code: '23514', message: 'transicao de status invalida: DISPONIVEL -> FEITO',
+      })).toBe('Não é possível mudar o status de "Disponível" para "Feito".')
+    })
+
+    it.each([
+      ['EM_PRODUCAO', 'POSTADO', 'Em produção', 'Postado'],
+      ['POSTADO', 'DISPONIVEL', 'Postado', 'Disponível'],
+      ['DESCARTADO', 'FEITO', 'Descartado', 'Feito'],
+    ])('transicao %s -> %s usa os rotulos', (de, para, rotuloDe, rotuloPara) => {
+      expect(mensagemDeErro({
+        code: '23514', message: `transicao de status invalida: ${de} -> ${para}`,
+      })).toBe(`Não é possível mudar o status de "${rotuloDe}" para "${rotuloPara}".`)
+    })
+
+    it('status sem rotulo conhecido aparece como veio', () => {
+      expect(mensagemDeErro({
+        code: '23514', message: 'transicao de status invalida: NOVO -> FEITO',
+      })).toBe('Não é possível mudar o status de "NOVO" para "Feito".')
+    })
+
     it('23514 sem nome de constraint na mensagem cai na mensagem generica', () => {
       expect(mensagemDeErro({ code: '23514' }))
         .toBe('Algum dado não obedece às regras do cadastro.')

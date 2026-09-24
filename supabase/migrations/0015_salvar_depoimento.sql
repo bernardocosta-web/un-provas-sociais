@@ -79,7 +79,7 @@ begin
     -- id inexistente (ou invisivel pela RLS) nao pode seguir para os filhos
     -- e falhar com um erro de chave estrangeira que nao explica nada.
     if not found then
-      raise exception 'depoimento % nao encontrado', v_id using errcode = 'P0002';
+      raise exception 'Depoimento % não encontrado.', v_id using errcode = 'P0002';
     end if;
   end if;
 

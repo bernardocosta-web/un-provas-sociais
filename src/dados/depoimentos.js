@@ -17,22 +17,38 @@ export async function salvarDepoimento(ficha) {
   return data
 }
 
+// So as colunas que a ficha usa (as que salvar_depoimento le, mais os ids e
+// o percentual gerado para exibir) — sem criado_em/atualizado_em.
+const COLUNAS_FICHA = `id, texto_completo, resumo_curto, autor_bruto, autor_contato_bruto,
+  fonte, link_original, data_depoimento, print_path, aluno_id,
+  autorizacao_publicacao, status_uso, data_postagem, link_post,
+  motivo_descarte, observacao_descarte,
+  depoimento_tipo(tipo), depoimento_canal(canal),
+  participacao(id, prova_id, ano,
+    nota(id, materia_id, valor_original, escala, valor_maximo, percentual),
+    resultado(id, instituicao_id, curso_id, situacao))`
+
+// Filhos ordenados por id: sem isso a ficha pode reordenar ao recarregar.
+// maybeSingle: id inexistente (ou invisivel pela RLS) vira data null, e o
+// erro sai em pt-BR em vez do PGRST116 cru do .single().
 export async function carregarDepoimento(id) {
   const { data, error } = await supabase
     .from('depoimento')
-    .select(`*, depoimento_tipo(tipo), depoimento_canal(canal),
-             participacao(id, prova_id, ano,
-               nota(id, materia_id, valor_original, escala, valor_maximo, percentual),
-               resultado(id, instituicao_id, curso_id, situacao))`)
+    .select(COLUNAS_FICHA)
     .eq('id', id)
-    .single()
+    .order('id', { referencedTable: 'participacao' })
+    .order('id', { referencedTable: 'participacao.nota' })
+    .order('id', { referencedTable: 'participacao.resultado' })
+    .maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Depoimento não encontrado.')
+  const { depoimento_tipo, depoimento_canal, participacao, ...campos } = data
   return {
-    ...data,
-    tipos: (data.depoimento_tipo ?? []).map((t) => t.tipo),
-    canais: (data.depoimento_canal ?? []).map((c) => c.canal),
-    participacoes: (data.participacao ?? []).map((p) => ({
-      ...p, notas: p.nota ?? [], resultados: p.resultado ?? [],
+    ...campos,
+    tipos: (depoimento_tipo ?? []).map((t) => t.tipo),
+    canais: (depoimento_canal ?? []).map((c) => c.canal),
+    participacoes: (participacao ?? []).map(({ nota, resultado, ...p }) => ({
+      ...p, notas: nota ?? [], resultados: resultado ?? [],
     })),
   }
 }

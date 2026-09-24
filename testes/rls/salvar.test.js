@@ -188,8 +188,79 @@ describe('salvar_depoimento', () => {
   it('id inexistente e recusado com mensagem clara', async () => {
     await comoPostgres(async (c) => {
       await expect(salvar(c, { id: -1, texto_completo: 'x', fonte: 'MANUAL' }))
-        .rejects.toThrow('depoimento -1 nao encontrado')
+        .rejects.toThrow('Depoimento -1 não encontrado.')
     })
+  })
+
+  it('transicao de status permitida passa pela funcao', async () => {
+    await comoPostgres(async (c) => {
+      const id = await salvar(c, { texto_completo: 'Transicao ok MARCADORSALVARTRANSOK',
+        fonte: 'MANUAL' })
+      await salvar(c, { id, texto_completo: 'Transicao ok MARCADORSALVARTRANSOK',
+        fonte: 'MANUAL', status_uso: 'EM_PRODUCAO' })
+      const linha = (await c.query('select status_uso from depoimento where id = $1',
+        [id])).rows[0]
+      expect(linha.status_uso).toBe('EM_PRODUCAO')
+    })
+  })
+
+  it('transicao de status proibida e recusada com a causa', async () => {
+    await comoPostgres(async (c) => {
+      const id = await salvar(c, { texto_completo: 'Transicao ruim MARCADORSALVARTRANSNAO',
+        fonte: 'MANUAL' })
+      await expect(salvar(c, { id, texto_completo: 'Transicao ruim MARCADORSALVARTRANSNAO',
+        fonte: 'MANUAL', status_uso: 'FEITO' }))
+        .rejects.toThrow('transicao de status invalida: DISPONIVEL -> FEITO')
+    })
+  })
+
+  it('reeditar avanca atualizado_em', async () => {
+    // now() e fixo dentro de uma transacao: aqui cada salvar e uma
+    // transacao propria (autocommit), e a linha e apagada no fim. A
+    // comparacao roda no Postgres (::text preserva microssegundos).
+    const c = await conectar()
+    let id
+    try {
+      id = await salvar(c, { texto_completo: 'Antes MARCADORSALVARATUALIZADO',
+        fonte: 'MANUAL' })
+      const antes = (await c.query(
+        'select atualizado_em::text as t from depoimento where id = $1', [id])).rows[0].t
+      await salvar(c, { id, texto_completo: 'Depois MARCADORSALVARATUALIZADO',
+        fonte: 'MANUAL' })
+      const avancou = (await c.query(
+        'select atualizado_em > $2::timestamptz as a from depoimento where id = $1',
+        [id, antes])).rows[0].a
+      expect(avancou).toBe(true)
+    } finally {
+      if (id) await c.query('delete from depoimento where id = $1', [id])
+      await c.end()
+    }
+  })
+
+  it('nota que viola CHECK desfaz o depoimento inteiro', async () => {
+    // Autocommit de proposito, como no teste de resultado acima.
+    const MARCADOR = 'MARCADORSALVARNOTA101'
+    const c = await conectar()
+    try {
+      const { prova, materia } = await referencias(c)
+      await expect(salvar(c, {
+        texto_completo: `Nota invalida ${MARCADOR}`,
+        fonte: 'MANUAL',
+        tipos: ['APROVACAO'],
+        participacoes: [{ prova_id: prova, ano: 2025,
+          notas: [{ materia_id: materia, valor_original: 101, escala: 'PERCENTUAL' }],
+          resultados: [] }],
+      })).rejects.toThrow(/ck_percentual_ate_100/)
+
+      const n = (await c.query(
+        `select (select count(*)::int from depoimento where texto_completo like $1) as d,
+                (select count(*)::int from participacao p join depoimento d
+                   on d.id = p.depoimento_id where d.texto_completo like $1) as p`,
+        [`%${MARCADOR}%`])).rows[0]
+      expect(n).toEqual({ d: 0, p: 0 })
+    } finally {
+      await c.end()
+    }
   })
 
   // Pelo caminho do app: authenticated precisa de EXECUTE na funcao e de
