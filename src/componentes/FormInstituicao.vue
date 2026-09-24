@@ -81,8 +81,8 @@ async function salvar() {
     <div>
       <img v-if="urlLogoAtual" :src="urlLogoAtual" alt="Logo atual" width="80" />
       <label>
-        Logo (WebP)
-        <input type="file" accept="image/*" @change="aoEscolherArquivo" />
+        Logo (PNG, JPG ou WebP — será convertida para WebP)
+        <input type="file" accept="image/png,image/jpeg,image/webp" @change="aoEscolherArquivo" />
       </label>
     </div>
 
