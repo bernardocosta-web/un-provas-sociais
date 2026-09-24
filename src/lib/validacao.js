@@ -43,6 +43,11 @@ export function validarDepoimento(ficha) {
     erros.push('Motivo de descarte só vale para depoimento descartado.')
   }
   // ck_descarte_observacao: observação só existe junto de um descarte.
+  // Contrato: texto em branco ('' ou só espaços) = ausente. Uma textarea
+  // limpa ou nunca preenchida manda '', não null/undefined — não é erro do
+  // usuário, então esta checagem usa trim() e nunca acusa branco. Quem
+  // converte branco para NULL de verdade é a camada de salvamento:
+  // salvar_depoimento (Task 19) grava nullif(btrim(observacao_descarte), '').
   if (ficha.status_uso !== 'DESCARTADO' && ficha.observacao_descarte?.trim()) {
     erros.push('Observação de descarte só vale para depoimento descartado.')
   }

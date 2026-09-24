@@ -2928,6 +2928,29 @@ git commit -m "feat(lib): validacao da ficha do depoimento"
 > conteúdo), e qualquer caminho futuro que edite só filhos (ex.: uma função que só mexe em
 > `nota`) deve fazer o mesmo, ou `atualizado_em` fica desatualizado em silêncio.
 
+> **Quarta emenda (2026-09-24), fix round 1 da Task 18.** A revisão da Task 18 encontrou mais
+> dois problemas que a nullif-em-branco da terceira emenda (acima) não cobria:
+> 1. `observacao_descarte` também precisa gravar com `nullif(btrim(p_ficha->>'observacao_descarte'), '')`
+>    — mesmo motivo do `print_path`/`link_original`/`link_post`: a ficha manda `''` para um
+>    textarea limpo ou nunca preenchido, não `null`, e o validador da Task 18 trata texto em
+>    branco (`''` ou só espaços) como "ausente" — contrato documentado em
+>    `src/lib/validacao.js` — então quem converte esse branco para `NULL` de verdade é sempre a
+>    camada de salvamento, nunca o validador (que bloquearia o usuário por um campo que ele nem
+>    vê como preenchido). Mesma correção com `nullif(btrim(...), '')` vale para `resumo_curto`,
+>    `autor_bruto` e `autor_contato_bruto`, pelo mesmo motivo.
+> 2. `motivo_descarte` precisa gravar com `nullif(p_ficha->>'motivo_descarte', '')::public.motivo_descarte`
+>    — um cast direto de `''::motivo_descarte` estoura com erro de enum inválido antes mesmo de
+>    chegar em `ck_descarte_motivo`, então uma ficha com `motivo_descarte: ''` (select limpo, caso
+>    normal de um depoimento ativo) quebraria com um erro técnico em vez de nenhum erro.
+> 3. Todo cast de enum da função (`::fonte_depoimento`, `::autorizacao_publicacao`,
+>    `::status_uso`, `::motivo_descarte`, `::tipo_depoimento`, `::canal_un`, `::escala_nota`,
+>    `::situacao_resultado`) precisa ser qualificado por schema (`::public.fonte_depoimento`
+>    etc.) — a função roda com `set search_path = ''` desde a terceira emenda, e um cast sem
+>    qualificação falha em runtime com "type fonte_depoimento does not exist"; isto é um defeito
+>    conhecido do SQL da terceira emenda acima, ainda não corrigido no texto do plano.
+> 4. O teste do Step 1 (`testes/rls/salvar.test.js`) deve incluir o caso "observação em branco em
+>    depoimento DISPONIVEL é gravada como NULL e aceita".
+
 **Files:**
 - Create: `src/dados/depoimentos.js`, `supabase/migrations/0012_salvar_depoimento.sql`, `testes/rls/salvar.test.js`
 

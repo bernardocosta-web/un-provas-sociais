@@ -100,10 +100,39 @@ describe('validarDepoimento', () => {
       .toContain('Observação de descarte só vale para depoimento descartado.')
   })
 
+  // Fix round 1 (2026-09-24): '' é exatamente o que uma textarea limpa
+  // manda — texto em branco conta como ausente, nunca como erro do
+  // usuário. Quem normaliza '' para NULL de verdade é salvar_depoimento
+  // (Task 19), não o validador.
+  it('observacao de descarte em branco (vazia ou so espacos) nao e erro', () => {
+    expect(validarDepoimento({ ...BASE, observacao_descarte: '' })).toEqual([])
+    expect(validarDepoimento({ ...BASE, observacao_descarte: '   ' })).toEqual([])
+  })
+
   it('ano fora do intervalo 1990-2100 e erro', () => {
     const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: 1800,
       notas: [], resultados: [] }] }
     expect(validarDepoimento(ficha))
+      .toContain('O ano da participação precisa estar entre 1990 e 2100.')
+  })
+
+  it('ano nos limites 1990 e 2100 e valido', () => {
+    const ficha1990 = { ...BASE, participacoes: [{ prova_id: 1, ano: 1990,
+      notas: [], resultados: [] }] }
+    const ficha2100 = { ...BASE, participacoes: [{ prova_id: 1, ano: 2100,
+      notas: [], resultados: [] }] }
+    expect(validarDepoimento(ficha1990)).toEqual([])
+    expect(validarDepoimento(ficha2100)).toEqual([])
+  })
+
+  it('ano imediatamente fora dos limites (1989, 2101) e erro', () => {
+    const ficha1989 = { ...BASE, participacoes: [{ prova_id: 1, ano: 1989,
+      notas: [], resultados: [] }] }
+    const ficha2101 = { ...BASE, participacoes: [{ prova_id: 1, ano: 2101,
+      notas: [], resultados: [] }] }
+    expect(validarDepoimento(ficha1989))
+      .toContain('O ano da participação precisa estar entre 1990 e 2100.')
+    expect(validarDepoimento(ficha2101))
       .toContain('O ano da participação precisa estar entre 1990 e 2100.')
   })
 
