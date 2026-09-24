@@ -31,8 +31,12 @@ back-end próprio. Vite + Vue 3. Vitest. Interface e documentação em pt-BR.
   `supabase/config.toml` quanto no painel hospedado. `eh_membro_equipe()`
   confia no e-mail do JWT (`auth.jwt() ->> 'email'`); qualquer provedor que
   emita e-mail não comprovado entrega a base a quem simplesmente digitar o
-  e-mail de um membro da equipe. Existe um teste nomeado
-  (`testes/auth/provedores.test.js`) que reprova essa mudança.
+  e-mail de um membro da equipe. O e-mail do JWT só pode vir de um endereço
+  comprovado: confirmação de e-mail (`auth.email.enable_confirmations`) e
+  troca segura de e-mail (`auth.email.double_confirm_changes`, confirma nos
+  dois endereços) ficam sempre ligadas — nunca "desligar para simplificar
+  teste". Existe um teste nomeado (`testes/auth/provedores.test.js`) que
+  reprova essa mudança.
 
 ## 4. Como trabalhar aqui
 

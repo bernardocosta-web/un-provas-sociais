@@ -234,9 +234,22 @@ web3 = 30
 enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
+# Fix round 1 (M1-A): mantido em true — troca de e-mail (PUT /user) só vale
+# depois de confirmar nos DOIS endereços. Sem isso, um usuário autenticado por
+# qualquer provedor poderia pedir para virar o dono do e-mail de um membro da
+# equipe sem provar posse do e-mail antigo.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# Fix round 1 (M1-A): true — o e-mail no JWT só pode vir de um endereço
+# comprovado. Antes estava false (mailer_autoconfirm=true no /settings), o que
+# deixa a porta aberta para um usuário criado fora do fluxo Google entrar já
+# "confirmado" sem provar que é dono do e-mail. Não achamos um jeito de
+# explorar isso pela API pública hoje (o /signup por e-mail já está desligado
+# e a troca de e-mail via PUT /user já fica pendente por causa do
+# double_confirm_changes acima — ver testes/auth/provedores.test.js e
+# task-m1a-report.md, seção "Fix round 1"), mas é defesa em profundidade
+# explícita do dono do projeto: o e-mail do JWT só pode vir do Google.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
