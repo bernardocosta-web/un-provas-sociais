@@ -49,7 +49,9 @@ describe('catalogo', () => {
     // Se este expect falhar, as duas assercoes acima estao passando por
     // vazio — a varredura nao esta olhando onde deveria.
     for (const esperada of ['instituicao', 'instituicao_apelido', 'prova',
-                            'curso', 'materia', 'membro_equipe']) {
+                            'curso', 'materia', 'membro_equipe',
+                            'aluno', 'aluno_perfil', 'depoimento',
+                            'depoimento_tipo', 'depoimento_canal']) {
       expect(tabelas).toContain(esperada)
     }
   })
