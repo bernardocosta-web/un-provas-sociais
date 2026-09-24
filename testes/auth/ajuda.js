@@ -77,10 +77,13 @@ export async function criarUsuarioAdmin(chaveServico, email) {
 }
 
 export async function deletarUsuarioAdmin(chaveServico, id) {
-  await chamarAuth(`/admin/users/${id}`, undefined, chaveServico, {
+  const { status, json } = await chamarAuth(`/admin/users/${id}`, undefined, chaveServico, {
     metodo: 'DELETE',
     autorizacao: chaveServico,
   })
+  if (status < 200 || status >= 300) {
+    throw new Error(`Falha ao apagar usuário de teste "${id}": ${status} ${JSON.stringify(json)}`)
+  }
 }
 
 // Não há credenciais reais do Google neste ambiente ainda (Task 13, manual).

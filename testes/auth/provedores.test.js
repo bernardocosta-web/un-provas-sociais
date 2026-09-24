@@ -187,4 +187,14 @@ describe('provedores de autenticação — login só pelo Google', () => {
     expect(config.saml_enabled).toBe(false)
     expect(config.passkeys_enabled).toBe(false)
   })
+
+  it('deletarUsuarioAdmin lança erro quando a Admin API recusa a exclusão', async () => {
+    const chaveServico = obterChaveServico()
+    // UUID válido, mas de usuário inexistente: a Admin API responde 404.
+    // Antes desta correção, deletarUsuarioAdmin ignorava o status e retornava
+    // silenciosamente, vazando o usuário de teste sempre que a limpeza falhasse.
+    await expect(
+      deletarUsuarioAdmin(chaveServico, '00000000-0000-0000-0000-000000000000')
+    ).rejects.toThrow(/404/)
+  })
 })
