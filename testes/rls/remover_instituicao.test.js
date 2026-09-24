@@ -59,9 +59,10 @@ describe('remover_instituicao', () => {
         [part, id])
 
       await c.query('savepoint antes_da_tentativa')
+      // Sem a parte de prova (contagem zero): so "1 resultado(s)".
       await expect(c.query('select public.remover_instituicao($1)', [id]))
         .rejects.toThrow(new RegExp(
-          `Em Uso ${sufixo}.*está em uso em 1 resultado\\(s\\) e 0 prova\\(s\\).*Mesclar`, 's'))
+          `Em Uso ${sufixo}.*está em uso em 1 resultado\\(s\\)\\. Para juntar.*Mesclar`, 's'))
       await c.query('rollback to savepoint antes_da_tentativa')
 
       const restou = await c.query('select count(*)::int as n from instituicao where id = $1', [id])
@@ -84,9 +85,45 @@ describe('remover_instituicao', () => {
         `insert into prova (nome, instituicao_id) values ($1, $2)`, [`Prova ${sufixo}`, id])
 
       await c.query('savepoint antes_da_tentativa')
+      // Sem a parte de resultado (contagem zero): so "1 prova(s)".
       await expect(c.query('select public.remover_instituicao($1)', [id]))
         .rejects.toThrow(new RegExp(
-          `Dona Da Prova ${sufixo}.*está em uso em 0 resultado\\(s\\) e 1 prova\\(s\\).*Mesclar`, 's'))
+          `Dona Da Prova ${sufixo}.*está em uso em 1 prova\\(s\\)\\. Para juntar.*Mesclar`, 's'))
+      await c.query('rollback to savepoint antes_da_tentativa')
+
+      const restou = await c.query('select count(*)::int as n from instituicao where id = $1', [id])
+      expect(restou.rows[0].n).toBe(1)
+    } finally {
+      await c.query('rollback').catch(() => {})
+      await c.end()
+    }
+  })
+
+  it('recusa remover instituicao usada em resultado E em prova, juntando as duas partes com "e"', async () => {
+    const c = await conectar()
+    try {
+      await c.query('begin')
+      const sufixo = 'MARCADORREMOVERINST5'
+      const id = (await c.query(
+        `insert into instituicao (nome_canonico) values ($1) returning id`,
+        [`Em Uso Dobrado ${sufixo}`])).rows[0].id
+      const prova = (await c.query(
+        `insert into prova (nome, instituicao_id) values ($1, $2) returning id`,
+        [`Prova ${sufixo}`, id])).rows[0].id
+      const dep = (await c.query(
+        `insert into depoimento (texto_completo, fonte) values ($1, 'MANUAL') returning id`,
+        [`Uso ${sufixo}`])).rows[0].id
+      const part = (await c.query(
+        `insert into participacao (depoimento_id, prova_id, ano) values ($1, $2, 2025) returning id`,
+        [dep, prova])).rows[0].id
+      await c.query(
+        `insert into resultado (participacao_id, instituicao_id, situacao) values ($1, $2, 'APROVADO')`,
+        [part, id])
+
+      await c.query('savepoint antes_da_tentativa')
+      await expect(c.query('select public.remover_instituicao($1)', [id]))
+        .rejects.toThrow(new RegExp(
+          `Em Uso Dobrado ${sufixo}.*está em uso em 1 resultado\\(s\\) e 1 prova\\(s\\)\\. Para juntar.*Mesclar`, 's'))
       await c.query('rollback to savepoint antes_da_tentativa')
 
       const restou = await c.query('select count(*)::int as n from instituicao where id = $1', [id])

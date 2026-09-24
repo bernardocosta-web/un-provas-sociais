@@ -68,4 +68,14 @@ describe('mensagemDeErro', () => {
     expect(mensagemDeErro({ name: 'EncodingError', message: 'The source image could not be decoded.' }))
       .toBe('Não foi possível ler a imagem; use PNG, JPG ou WebP.')
   })
+
+  // Rede de seguranca de remover_instituicao/remover_cadastro_simples
+  // (0014): se uma corrida escapar da trava (SELECT ... FOR UPDATE) e o
+  // delete for rejeitado pela FK restrict, o codigo chega como 23503.
+  it('traduz violacao de chave estrangeira (23503, ex.: remover cadastro em uso) para pt-BR', () => {
+    expect(mensagemDeErro({
+      code: '23503',
+      message: 'update or delete on table "prova" violates foreign key constraint "participacao_prova_id_fkey" on table "participacao"',
+    })).toBe('Não foi possível remover: o cadastro está em uso.')
+  })
 })

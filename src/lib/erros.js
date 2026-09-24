@@ -18,6 +18,11 @@ const MENSAGENS_POR_CODIGO = {
   23514: 'Preencha o nome.',
   // not_null_violation: campo obrigatório ausente do payload.
   23502: 'Campo obrigatório em branco.',
+  // foreign_key_violation: rede de segurança de remover_instituicao/
+  // remover_cadastro_simples (0014) contra uma corrida (uso inserido entre a
+  // contagem e o delete) que a trava (SELECT ... FOR UPDATE) não pegou —
+  // hoje só alcançável em teoria, não observada em teste.
+  23503: 'Não foi possível remover: o cadastro está em uso.',
 }
 
 const MENSAGEM_RLS_STORAGE = 'Sem permissão: este e-mail não está na lista da equipe.'

@@ -164,11 +164,11 @@ describe('remover_cadastro_simples', () => {
     }
   })
 
-  it('materia inexistente: "nao existe"', async () => {
+  it.each(['prova', 'curso', 'materia'])('%s inexistente: "nao existe"', async (tabela) => {
     const c = await conectar()
     try {
       await c.query('begin')
-      await expect(c.query(`select public.remover_cadastro_simples('materia', $1)`, [999999999]))
+      await expect(c.query(`select public.remover_cadastro_simples($1, $2)`, [tabela, 999999999]))
         .rejects.toMatchObject({ message: expect.stringContaining('não existe') })
     } finally {
       await c.query('rollback').catch(() => {})
