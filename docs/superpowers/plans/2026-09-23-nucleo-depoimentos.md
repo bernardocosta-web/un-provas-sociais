@@ -2367,66 +2367,140 @@ git commit -m "feat(lib): compressao de imagem mirando o carrossel"
 > `FUNCOES_DO_APP` (em ordem alfabética); sem o `grant`, "só as funções do app têm EXECUTE
 > para authenticated" reprova.
 
+> **Terceira emenda (revisão conjunta Tasks 15/16/18 + M3-G, 2026-09-24) — aplicada no código
+> abaixo.** Os Steps 1, 3, 4 e 5 foram reescritos; em caso de divergência com as emendas acima,
+> valem eles:
+> - `salvarInstituicao` faz `insert` quando não há `id` e `update(...).eq('id', id)` quando há. O
+>   `upsert` com `id` explícito é recusado pelo Postgres (`id` é `generated always`, erro 428C9,
+>   conferido no banco local) antes de chegar ao `on conflict`. O `delete` dos apelidos antigos
+>   passa a checar o erro.
+> - `enviarLogo` devolve o **caminho** (`nomeArquivo`), não a URL pública: é o caminho que vai
+>   para `logo_path`, e só com ele `remove([antigo])` funciona. A URL é derivada na renderização
+>   por `urlDaLogo(caminho)` (`getPublicUrl`). Ganha também `removerLogo(caminho)` e
+>   `criarInstituicao(nome_canonico)` (usado pelo combobox da Task 20).
+> - `mesclar_instituicoes` com `set search_path = ''` e tudo qualificado por `public.` (convenção
+>   da Task 11); confere que a vencedora existe; **devolve o `logo_path` da perdedora**
+>   (`returns text`), e `mesclarInstituicoes` remove esse arquivo do bucket `logos` depois de a
+>   mesclagem confirmar. A remoção não é feita no SQL porque o Supabase proíbe apagar de
+>   `storage.objects` por SQL (trigger `storage.protect_delete`: "Direct deletion from storage
+>   tables is not allowed. Use the Storage API instead." — conferido no banco local). Falha na
+>   remoção não desfaz a mesclagem; só deixa um arquivo órfão, com aviso no console.
+> - Teste: cada caso roda numa transação desfeita (nenhuma linha fica para trás, o que dispensa a
+>   análise de idempotência da segunda emenda); confere o `logo_path` devolvido, a recusa de
+>   mesclar uma instituição com ela mesma e uma mesclagem via `comoUsuario(MEMBRO)` (grant + RLS).
+> - `FormInstituicao.vue` captura o erro de `comprimir()`/`enviarLogo()`/`salvarInstituicao()` e
+>   mostra `erro.message` (Step 5).
+>
+> SQL e teste verificados contra o banco local (0002–0011) com a migração aplicada
+> temporariamente; nada persistiu.
+
 **Files:**
 - Create: `src/dados/referencia.js`, `src/telas/Cadastros.vue`, `src/componentes/ListaInstituicoes.vue`, `src/componentes/FormInstituicao.vue`, `supabase/migrations/0012_mesclar.sql`, `testes/rls/mesclar.test.js`
-- Modify: `src/App.vue`
+- Modify: `src/App.vue`, `testes/rls/privilegios.test.js` (acrescentar `'mesclar_instituicoes(p_vencedor bigint, p_perdedor bigint)'` a `FUNCOES_DO_APP`, em ordem alfabética)
 
 **Interfaces:**
 - Consumes: `src/lib/instituicoes.js` (Task 15), `src/lib/imagem.js` (Task 16)
-- Produces: `listarInstituicoes()`, `salvarInstituicao(dados)`, `mesclarInstituicoes(idVencedor, idPerdedor)`, `listarSimples(tabela)`, `criarSimples(tabela, nome)`
+- Produces: `listarInstituicoes()`, `salvarInstituicao(dados)`, `mesclarInstituicoes(idVencedor, idPerdedor)`, `enviarLogo(arquivo, nomeArquivo) → caminho`, `removerLogo(caminho)`, `urlDaLogo(caminho) → url`, `listarSimples(tabela)`, `criarSimples(tabela, nome)`, `criarInstituicao(nome_canonico)`
 
 - [ ] **Step 1: Escrever o teste da mesclagem**
 
 Mesclar não é enfeite: permitir criar instituição na hora garante duplicata na primeira semana.
 
-`testes/rls/mesclar.test.js`:
+Bloco autoritativo (terceira emenda). `testes/rls/mesclar.test.js`:
 
 ```js
-import { describe, it, expect } from 'vitest'
-import { conectar } from './ajuda.js'
+import { describe, it, expect, beforeAll } from 'vitest'
+import { conectar, comoUsuario } from './ajuda.js'
+
+const MEMBRO = 'membro@exemplo.test'
+
+// Monta vencedora, perdedora (com logo) e um resultado apontando para a
+// perdedora. Nomes com marcador: cada teste roda numa transacao desfeita no
+// fim, entao nada fica para tras e nao ha disputa com outros arquivos.
+async function cenario(c, sufixo) {
+  const vencedor = (await c.query(
+    `insert into instituicao (nome_canonico) values ($1) returning id`,
+    [`Universidade Federal de Juiz de Fora ${sufixo}`])).rows[0].id
+  const perdedor = (await c.query(
+    `insert into instituicao (nome_canonico, logo_path) values ($1, $2) returning id`,
+    [`UFJF ${sufixo}`, `logo-perdedora-${sufixo}.webp`])).rows[0].id
+  const dep = (await c.query(
+    `insert into depoimento (texto_completo, fonte)
+     values ($1, 'MANUAL') returning id`, [`Mesclagem ${sufixo}`])).rows[0].id
+  const prova = (await c.query(
+    `insert into prova (nome) values ('ENEM')
+     on conflict (nome) do update set nome = excluded.nome
+     returning id`)).rows[0].id
+  const part = (await c.query(
+    `insert into participacao (depoimento_id, prova_id, ano)
+     values ($1, $2, 2025) returning id`, [dep, prova])).rows[0].id
+  await c.query(
+    `insert into resultado (participacao_id, instituicao_id, situacao)
+     values ($1, $2, 'APROVADO')`, [part, perdedor])
+  return { vencedor, perdedor, part }
+}
+
+async function conferir(c, { vencedor, perdedor, part }, sufixo) {
+  const restou = await c.query(
+    'select count(*)::int as n from instituicao where id = $1', [perdedor])
+  expect(restou.rows[0].n).toBe(0)
+
+  const apelido = await c.query(
+    'select apelido from instituicao_apelido where instituicao_id = $1', [vencedor])
+  expect(apelido.rows.map((r) => r.apelido)).toContain(`UFJF ${sufixo}`)
+
+  const migrado = await c.query(
+    'select instituicao_id from resultado where participacao_id = $1', [part])
+  expect(Number(migrado.rows[0].instituicao_id)).toBe(Number(vencedor))
+}
+
+beforeAll(async () => {
+  const c = await conectar()
+  await c.query(
+    `insert into membro_equipe (email, nome, ativo) values ($1, 'Membro Ativo', true)
+     on conflict (email) do nothing`, [MEMBRO])
+  await c.end()
+})
 
 describe('mesclar_instituicoes', () => {
-  it('transforma o perdedor em apelido do vencedor e migra os resultados', async () => {
+  it('transforma a perdedora em apelido da vencedora e migra os resultados', async () => {
     const c = await conectar()
-    const vencedor = (await c.query(
-      `insert into instituicao (nome_canonico) values
-       ('Universidade Federal de Juiz de Fora')
-       on conflict (nome_canonico) do update set nome_canonico = excluded.nome_canonico
-       returning id`)).rows[0].id
-    const perdedor = (await c.query(
-      `insert into instituicao (nome_canonico) values ('UFJF')
-       on conflict (nome_canonico) do update set nome_canonico = excluded.nome_canonico
-       returning id`)).rows[0].id
+    try {
+      await c.query('begin')
+      const ids = await cenario(c, 'MARCADORMESCLAR1')
+      const logo = (await c.query(
+        'select public.mesclar_instituicoes($1, $2) as logo',
+        [ids.vencedor, ids.perdedor])).rows[0].logo
+      // O logo da perdedora volta para quem chama remover do bucket.
+      expect(logo).toBe('logo-perdedora-MARCADORMESCLAR1.webp')
+      await conferir(c, ids, 'MARCADORMESCLAR1')
+    } finally {
+      await c.query('rollback').catch(() => {})
+      await c.end()
+    }
+  })
 
-    const dep = (await c.query(
-      `insert into depoimento (texto_completo, fonte)
-       values ('t','MANUAL') returning id`)).rows[0].id
-    const prova = (await c.query(
-      `insert into prova (nome) values ('ENEM')
-       on conflict (nome) do update set nome = excluded.nome
-       returning id`)).rows[0].id
-    const part = (await c.query(
-      `insert into participacao (depoimento_id, prova_id, ano)
-       values ($1,$2,2025) returning id`, [dep, prova])).rows[0].id
-    await c.query(
-      `insert into resultado (participacao_id, instituicao_id, situacao)
-       values ($1,$2,'APROVADO')`, [part, perdedor])
+  it('recusa mesclar uma instituicao com ela mesma', async () => {
+    const c = await conectar()
+    try {
+      await c.query('begin')
+      const { vencedor } = await cenario(c, 'MARCADORMESCLAR2')
+      await expect(c.query('select public.mesclar_instituicoes($1, $1)', [vencedor]))
+        .rejects.toThrow('nao da para mesclar uma instituicao com ela mesma')
+    } finally {
+      await c.query('rollback').catch(() => {})
+      await c.end()
+    }
+  })
 
-    await c.query('select mesclar_instituicoes($1, $2)', [vencedor, perdedor])
-
-    const restou = await c.query(
-      'select count(*)::int as n from instituicao where id = $1', [perdedor])
-    expect(restou.rows[0].n).toBe(0)
-
-    const apelido = await c.query(
-      'select apelido from instituicao_apelido where instituicao_id = $1', [vencedor])
-    expect(apelido.rows.map((r) => r.apelido)).toContain('UFJF')
-
-    const migrado = await c.query(
-      'select instituicao_id from resultado where participacao_id = $1', [part])
-    expect(Number(migrado.rows[0].instituicao_id)).toBe(Number(vencedor))
-
-    await c.end()
+  // Pelo caminho do app: authenticated precisa de EXECUTE (0012) e de
+  // privilegio nas tabelas (0011); a RLS decide as linhas.
+  it('membro ativo da equipe mescla pela API', async () => {
+    await comoUsuario(MEMBRO, async (c) => {
+      const ids = await cenario(c, 'MARCADORMESCLAR3')
+      await c.query('select public.mesclar_instituicoes($1, $2)', [ids.vencedor, ids.perdedor])
+      await conferir(c, ids, 'MARCADORMESCLAR3')
+    })
   })
 })
 ```
@@ -2438,36 +2512,57 @@ Expected: FAIL — função não existe.
 
 - [ ] **Step 3: Escrever a migração**
 
-`supabase/migrations/0012_mesclar.sql`:
+Bloco autoritativo (terceira emenda). `supabase/migrations/0012_mesclar.sql`:
 
 ```sql
+-- Mescla duas instituicoes: o nome da perdedora vira apelido da vencedora,
+-- resultados, provas e apelidos migram, e a perdedora e apagada — tudo numa
+-- transacao so.
+--
+-- SECURITY INVOKER (padrao): roda com os privilegios e a RLS de quem chama.
+-- search_path vazio e tudo qualificado por public. (convencao da Task 11).
+--
+-- Devolve o logo_path da perdedora (ou null). O arquivo nao e apagado aqui:
+-- o Supabase nao deixa apagar de storage.objects por SQL (so pela Storage
+-- API), entao quem chama remove o arquivo do bucket logos depois de a
+-- mesclagem confirmar (mesclarInstituicoes, src/dados/referencia.js).
 create or replace function public.mesclar_instituicoes(
   p_vencedor bigint, p_perdedor bigint)
-returns void
+returns text
 language plpgsql
+set search_path = ''
 as $$
-declare nome_perdedor text;
+declare
+  v_nome_perdedor text;
+  v_logo_perdedor text;
 begin
   if p_vencedor = p_perdedor then
     raise exception 'nao da para mesclar uma instituicao com ela mesma';
   end if;
 
-  select nome_canonico into nome_perdedor from instituicao where id = p_perdedor;
-  if nome_perdedor is null then
+  if not exists (select 1 from public.instituicao where id = p_vencedor) then
+    raise exception 'instituicao vencedora % nao existe', p_vencedor;
+  end if;
+
+  select nome_canonico, logo_path into v_nome_perdedor, v_logo_perdedor
+    from public.instituicao where id = p_perdedor;
+  if v_nome_perdedor is null then
     raise exception 'instituicao perdedora % nao existe', p_perdedor;
   end if;
 
-  update resultado set instituicao_id = p_vencedor where instituicao_id = p_perdedor;
-  update prova     set instituicao_id = p_vencedor where instituicao_id = p_perdedor;
+  update public.resultado set instituicao_id = p_vencedor where instituicao_id = p_perdedor;
+  update public.prova     set instituicao_id = p_vencedor where instituicao_id = p_perdedor;
 
-  update instituicao_apelido set instituicao_id = p_vencedor
+  update public.instituicao_apelido set instituicao_id = p_vencedor
    where instituicao_id = p_perdedor;
 
-  insert into instituicao_apelido (instituicao_id, apelido)
-  values (p_vencedor, nome_perdedor)
+  insert into public.instituicao_apelido (instituicao_id, apelido)
+  values (p_vencedor, v_nome_perdedor)
   on conflict (apelido) do nothing;
 
-  delete from instituicao where id = p_perdedor;
+  delete from public.instituicao where id = p_perdedor;
+
+  return v_logo_perdedor;
 end $$;
 
 revoke all on function public.mesclar_instituicoes(bigint, bigint) from public, anon, service_role;
@@ -2476,7 +2571,7 @@ grant execute on function public.mesclar_instituicoes(bigint, bigint) to authent
 
 - [ ] **Step 4: Escrever a camada de dados**
 
-`src/dados/referencia.js`:
+Bloco autoritativo (terceira emenda). `src/dados/referencia.js`:
 
 ```js
 import { supabase } from './cliente.js'
@@ -2493,15 +2588,20 @@ export async function listarInstituicoes() {
   }))
 }
 
+// insert sem id, update com id: `id` e `generated always`, e um upsert com
+// id explicito e recusado pelo Postgres (428C9, "cannot insert a non-DEFAULT
+// value into column id") antes mesmo de chegar no ON CONFLICT.
 export async function salvarInstituicao({ id, nome_canonico, logo_path, apelidos }) {
-  const { data, error } = await supabase
-    .from('instituicao')
-    .upsert({ id, nome_canonico, logo_path })
-    .select('id')
-    .single()
+  const campos = { nome_canonico, logo_path: logo_path ?? null }
+  const consulta = id
+    ? supabase.from('instituicao').update(campos).eq('id', id)
+    : supabase.from('instituicao').insert(campos)
+  const { data, error } = await consulta.select('id').single()
   if (error) throw error
 
-  await supabase.from('instituicao_apelido').delete().eq('instituicao_id', data.id)
+  const { error: erroLimpeza } = await supabase
+    .from('instituicao_apelido').delete().eq('instituicao_id', data.id)
+  if (erroLimpeza) throw erroLimpeza
   if (apelidos?.length) {
     const { error: erroApelido } = await supabase
       .from('instituicao_apelido')
@@ -2511,11 +2611,19 @@ export async function salvarInstituicao({ id, nome_canonico, logo_path, apelidos
   return data.id
 }
 
+// A funcao devolve o logo_path da perdedora; o arquivo so e removido do
+// bucket depois de a mesclagem confirmar (SQL nao pode apagar de
+// storage.objects — so a Storage API). Falha nessa remocao nao desfaz a
+// mesclagem, que ja valeu: deixa um arquivo orfao no bucket, e so.
 export async function mesclarInstituicoes(idVencedor, idPerdedor) {
-  const { error } = await supabase.rpc('mesclar_instituicoes', {
+  const { data: logoPerdedor, error } = await supabase.rpc('mesclar_instituicoes', {
     p_vencedor: idVencedor, p_perdedor: idPerdedor,
   })
   if (error) throw error
+  if (logoPerdedor) {
+    const { error: erroRemocao } = await supabase.storage.from('logos').remove([logoPerdedor])
+    if (erroRemocao) console.warn('Logo da instituição mesclada ficou no bucket:', erroRemocao.message)
+  }
 }
 
 // upsert: false — o bucket nao tem politica de UPDATE (decisao do dono); um
@@ -2523,12 +2631,26 @@ export async function mesclarInstituicoes(idVencedor, idPerdedor) {
 // ser unico por envio (ver emenda no cabecalho desta tarefa); a substituicao
 // de uma logo antiga e responsabilidade de quem chama (gravar a referencia
 // nova antes de remover o arquivo antigo).
+//
+// Devolve o CAMINHO (nomeArquivo), nao a URL: e o caminho que vai para
+// instituicao.logo_path, e so com ele `remove([antigo])` funciona. A URL
+// publica e derivada na hora de renderizar (urlDaLogo).
 export async function enviarLogo(arquivo, nomeArquivo) {
   const { error } = await supabase.storage.from('logos').upload(nomeArquivo, arquivo, {
     upsert: false, contentType: 'image/webp',
   })
   if (error) throw error
-  return supabase.storage.from('logos').getPublicUrl(nomeArquivo).data.publicUrl
+  return nomeArquivo
+}
+
+export async function removerLogo(caminho) {
+  const { error } = await supabase.storage.from('logos').remove([caminho])
+  if (error) throw error
+}
+
+export function urlDaLogo(caminho) {
+  if (!caminho) return null
+  return supabase.storage.from('logos').getPublicUrl(caminho).data.publicUrl
 }
 
 export async function listarSimples(tabela) {
@@ -2543,13 +2665,50 @@ export async function criarSimples(tabela, nome) {
   if (error) throw error
   return data
 }
+
+// Instituicao nao e "simples": a coluna e nome_canonico, nao nome. Usado pelo
+// combobox da ficha (Task 20) para criar na hora.
+export async function criarInstituicao(nome_canonico) {
+  const { data, error } = await supabase
+    .from('instituicao').insert({ nome_canonico })
+    .select('id, nome_canonico, ativo').single()
+  if (error) throw error
+  return { ...data, apelidos: [] }
+}
 ```
 
 - [ ] **Step 5: Montar as telas**
 
-`src/componentes/FormInstituicao.vue` — campos `nome_canonico`, lista de apelidos como chips com adicionar e remover, e envio de logo passando por `comprimir()` antes de `enviarLogo()`. Ao trocar a logo de uma instituição já existente: guardar o `logo_path` antigo; enviar o arquivo novo com nome único (`` `${crypto.randomUUID()}.webp` ``, ver emenda no cabeçalho desta tarefa) via `enviarLogo()`; gravar a instituição com o `logo_path` novo via `salvarInstituicao()`; só depois desse `salvarInstituicao()` ter sucesso, apagar o arquivo antigo com `storage.from('logos').remove([antigo])`. Se `salvarInstituicao()` falhar, apagar o arquivo **novo** que acabou de ser enviado (`remove([novo])`), não o antigo — a logo que já funcionava continua valendo.
+`src/componentes/FormInstituicao.vue` — campos `nome_canonico`, lista de apelidos como chips com adicionar e remover, e envio de logo passando por `comprimir()` antes de `enviarLogo()`. Ao trocar a logo de uma instituição já existente: guardar o `logo_path` antigo; enviar o arquivo novo com nome único (`` `${crypto.randomUUID()}.webp` ``, ver emenda no cabeçalho desta tarefa) via `enviarLogo()`; gravar a instituição com o `logo_path` novo via `salvarInstituicao()`; só depois desse `salvarInstituicao()` ter sucesso, apagar o arquivo antigo com `storage.from('logos').remove([antigo])`. Se `salvarInstituicao()` falhar, apagar o arquivo **novo** que acabou de ser enviado (`removerLogo(novo)`), não o antigo — a logo que já funcionava continua valendo. `logo_path` guarda sempre o **caminho** devolvido por `enviarLogo()`, nunca uma URL.
 
-`src/componentes/ListaInstituicoes.vue` — tabela com logo, nome, apelidos e botão **Mesclar**, que abre a escolha de vencedor e chama `mesclarInstituicoes`.
+Erros viram mensagem na tela, não exceção solta no console: `comprimir()` recusa navegador sem WebP (Safari) e imagem inválida, e o envio/salvamento pode falhar por rede ou RLS.
+
+```js
+const erro = ref('')
+
+async function salvar() {
+  erro.value = ''
+  const antigo = form.logo_path
+  let novo = null
+  try {
+    if (arquivoEscolhido.value) {
+      const comprimido = await comprimir(arquivoEscolhido.value)
+      novo = await enviarLogo(comprimido, `${crypto.randomUUID()}.webp`)
+    }
+    await salvarInstituicao({ ...form, logo_path: novo ?? antigo })
+  } catch (e) {
+    if (novo) await removerLogo(novo).catch(() => {})
+    erro.value = e.message
+    return
+  }
+  if (novo && antigo) await removerLogo(antigo).catch(() => {})
+  emit('salvo')
+}
+```
+
+No template, `<p v-if="erro" role="alert">{{ erro }}</p>`.
+
+`src/componentes/ListaInstituicoes.vue` — tabela com logo (`<img :src="urlDaLogo(i.logo_path)">`, só quando há `logo_path`), nome, apelidos e botão **Mesclar**, que abre a escolha de vencedor e chama `mesclarInstituicoes` (que já remove a logo da perdedora do bucket).
 
 `src/telas/Cadastros.vue` — abas para Instituições, Provas, Cursos e Matérias, usando `listarSimples`/`criarSimples` nas três últimas. A aba de Provas tem o seletor opcional de instituição, que é nulo para o ENEM.
 
