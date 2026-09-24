@@ -4,6 +4,11 @@
 // fonte da verdade — esta validação é conveniência, nunca substituição.
 // Lógica pura: sem Vue, sem supabase-js.
 
+// Valores vindos de formulário chegam como string ('18', ' 20 ', ''): a
+// conversão compartilhada (numero.js) trata branco como ausente, nunca 0.
+// A mesma conversão prepara a ficha para gravar (ficha.js).
+import { numeroOuNulo as numero } from './numero.js'
+
 // Aviso visual, nunca bloqueio: limite rigido produziria resumo truncado
 // no meio da frase, que e pior que resumo longo.
 export const LIMITE_AVISO_RESUMO = 200
@@ -11,18 +16,6 @@ export const LIMITE_AVISO_RESUMO = 200
 // nota.valor_original e nota.valor_maximo sao numeric(8,2) (0007): acima
 // disso o banco recusa com "numeric field overflow".
 export const VALOR_NOTA_MAXIMO = 999999.99
-
-// Valores vindos de formulário chegam como string ('18', ' 20 ', '').
-// Number('') é 0, não ausência — por isso o trim e a checagem de vazio
-// antes de converter, senão '9' > '20' (comparação lexica) engana a
-// validação de "passar do máximo" e afins.
-function numero(valor) {
-  if (valor === null || valor === undefined) return null
-  const texto = String(valor).trim()
-  if (texto === '') return null
-  const n = Number(texto)
-  return Number.isNaN(n) ? null : n
-}
 
 export function validarDepoimento(ficha) {
   const erros = []

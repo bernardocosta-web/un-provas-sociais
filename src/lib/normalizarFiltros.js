@@ -13,20 +13,14 @@
 // participacao); minimo so exige numero finito (aceita decimal). Familia
 // desconhecida numa condicao de nota descarta a condicao.
 
+import { paraNumero } from './numero.js'
+
+// Coercao central (paraNumero) mora em numero.js, compartilhada com
+// validacao.js e ficha.js; reexportada aqui para quem ja a importava daqui.
+export { paraNumero }
+
 export const OPERADORES_VALIDOS = new Set(['=', '>='])
 const FAMILIAS_VALIDAS = new Set(['PERCENTUAL', 'TRI'])
-
-// Coercao central: number passa direto; string e trimada e convertida
-// (string vazia/so espaco vira NaN, nunca 0 — Number('') e Number('  ')
-// dariam 0); qualquer outro tipo (null, undefined, objeto) vira NaN.
-export function paraNumero(valor) {
-  if (typeof valor === 'number') return valor
-  if (typeof valor === 'string') {
-    const limpo = valor.trim()
-    return limpo === '' ? NaN : Number(limpo)
-  }
-  return NaN
-}
 
 function ehIdPositivo(n) {
   return Number.isSafeInteger(n) && n > 0
