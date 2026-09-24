@@ -18,6 +18,15 @@ create policy prints_remocao on storage.objects
 -- Logos: leitura publica (marca de instituicao nao e dado sensivel, e a lista
 -- renderiza dezenas por pagina). Escrita restrita: bucket publico onde
 -- qualquer um grava e defacement esperando acontecer.
+--
+-- A leitura publica de fato (pagina publica) passa pela URL publica da
+-- Storage API, nao por RLS. Esta politica de select e para a equipe: sem
+-- ela, o proprio membro nao enxerga a linha que acabou de inserir/apagar
+-- (insert ... returning e delete ... where dependem de SELECT para
+-- identificar a linha), quebrando o upload de logo pelo navegador.
+create policy logos_leitura on storage.objects
+  for select using (bucket_id = 'logos' and public.eh_membro_equipe());
+
 create policy logos_escrita on storage.objects
   for insert with check (bucket_id = 'logos' and public.eh_membro_equipe());
 
