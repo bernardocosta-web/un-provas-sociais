@@ -1665,6 +1665,37 @@ git commit -m "feat(db): buscar_depoimentos com semantica de nivel de depoimento
 
 ### Task 12: Montagem de filtros em `src/lib`
 
+> **Emenda pós-aprovação (2026-09-24).** O contrato de `p_filtros` mudou
+> depois deste plano ter sido escrito (ver a emenda 2026-09-24 na Task 11
+> acima e `supabase/migrations/0010_busca.sql`, fonte da verdade). Três
+> acréscimos sobre os Steps 1/3 abaixo:
+> 1. **Faixa de ano.** `ESTADO_VAZIO` ganha `anoDe: null, anoAte: null`.
+>    `montarFiltros` emite `ano_de`/`ano_ate` quando presentes (inteiros,
+>    independentes de `ano`); a URL usa as mesmas chaves `ano_de`/`ano_ate`;
+>    ida e volta preservada.
+> 2. **Operador da condição de nota.** Um item de `notas` no estado pode
+>    trazer `operador: '=' | '>='`. `montarFiltros` só repassa o operador
+>    para condições de PERCENTUAL quando ele é `'='` (omite quando `'>='`
+>    ou ausente — mantendo a saída esperada pelos testes originais deste
+>    arquivo inalterada); condições de TRI nunca carregam operador (a
+>    função ignora e é sempre `>=`). Na URL, o item
+>    `materia_id:minimo:familia` vira `materia_id:minimo:familia:operador`
+>    de forma retrocompatível — um item de 3 partes ainda é reconhecido,
+>    com operador ausente (sem chave `operador` no objeto resultante, não
+>    `operador: undefined`). Ida e volta preservada.
+> 3. **Montagem defensiva.** Para respeitar os limites conhecidos do
+>    chamador de `buscar_depoimentos` (Task 11): descarta condição de
+>    nota/tri cujo `materia_id` ou `minimo` não seja número finito; nunca
+>    emite elemento `null` dentro de uma lista; trata texto vazio/só
+>    espaço e número não numérico vindos de uma URL editada à mão como
+>    ausente (ex.: `?ano=` ou `?ano=abc` → `ano` nulo;
+>    `instituicoes=1,,x` → `[1]`).
+>
+> `src/lib/filtros.js` supera os blocos de código do Step 3 abaixo — eles
+> não foram reescritos aqui; a implementação real (com os três itens
+> acima) e os testes de regressão de cada um estão em
+> `testes/lib/filtros.test.js`.
+
 **Files:**
 - Create: `src/lib/filtros.js`, `testes/lib/filtros.test.js`
 
