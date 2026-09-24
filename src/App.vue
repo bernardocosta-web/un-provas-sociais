@@ -9,6 +9,7 @@ const carregando = ref(true)
 onMounted(async () => {
   usuario.value = await usuarioAtual()
   carregando.value = false
+  // Sem onUnmounted cancelando a assinatura: App.vue é a raiz e nunca desmonta.
   aoMudarSessao((sessao) => { usuario.value = sessao?.user ?? null })
 })
 </script>
