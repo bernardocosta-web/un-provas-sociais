@@ -14,10 +14,10 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select exists (
-    select 1 from membro_equipe
+    select 1 from public.membro_equipe
     where email = lower(coalesce(auth.jwt() ->> 'email', ''))
       and ativo
   );

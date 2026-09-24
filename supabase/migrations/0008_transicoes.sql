@@ -3,6 +3,7 @@
 create or replace function public.valida_transicao_status()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   if new.status_uso = old.status_uso then
