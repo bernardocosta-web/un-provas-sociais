@@ -150,12 +150,22 @@ describe('catalogo', () => {
   it('toda tabela de public com coluna atualizado_em tem o trigger trg_tocar_atualizado_em', async () => {
     const cliente = await conectar()
     try {
+      // Restrita a tabela de verdade ('r' comuns, 'p' particionadas): uma
+      // view futura com uma coluna atualizado_em (ex.: reexpondo a de uma
+      // tabela) aparece em information_schema.columns mas nunca pode ter
+      // um trigger BEFORE UPDATE FOR EACH ROW — sem o filtro por relkind
+      // ela reprovaria a varredura por um motivo que nao e dela.
+      //
       // Nao pode passar por vazio: se nenhuma tabela tiver a coluna, a
       // varredura abaixo nao esta olhando onde deveria (ou a coluna sumiu).
       const comColuna = await cliente.query(`
-        select table_name as tabela
-        from information_schema.columns
-        where table_schema = 'public' and column_name = 'atualizado_em'
+        select c.relname as tabela
+        from information_schema.columns col
+        join pg_class c on c.relname = col.table_name
+        join pg_namespace n on n.oid = c.relnamespace and n.nspname = col.table_schema
+        where col.table_schema = 'public'
+          and col.column_name = 'atualizado_em'
+          and c.relkind in ('r', 'p')
         order by 1
       `)
       expect(comColuna.rows.length).toBeGreaterThan(0)
@@ -167,6 +177,7 @@ describe('catalogo', () => {
         join pg_namespace n on n.oid = c.relnamespace and n.nspname = col.table_schema
         where col.table_schema = 'public'
           and col.column_name = 'atualizado_em'
+          and c.relkind in ('r', 'p')
           and not exists (
             select 1 from pg_trigger t
             where t.tgrelid = c.oid and t.tgname = 'trg_tocar_atualizado_em'

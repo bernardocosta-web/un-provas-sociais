@@ -102,6 +102,28 @@ describe('nota', () => {
       .rejects.toThrow(/ck_pontos_ate_maximo/)
   })
 
+  it('faixa: PONTOS negativo com maximo minusculo e recusado por ck_nota_nao_negativa, nao por overflow', async () => {
+    // -1000 de 0,01: sem a guarda cobrir valor_original negativo, o Postgres
+    // calcula round(-1000/0.01*100, 2) = -10000000.00 antes de avaliar os
+    // checks, e estoura numeric(6,2) (22003) em vez de recusar pela causa
+    // certa (o valor e negativo, em qualquer escala).
+    await expect(inserirNota({ valor: -1000, escala: 'PONTOS', maximo: 0.01 }))
+      .rejects.toThrow(/ck_nota_nao_negativa/)
+  })
+
+  it('faixa: PONTOS 0 de 0 e recusado por ck_pontos_exige_maximo, nao por divisao por zero', async () => {
+    // 0 de 0: sem a guarda cobrir maximo <= 0, o Postgres calcula
+    // round(0/0*100, 2) antes de avaliar os checks e falha com "division by
+    // zero" (22012) em vez de recusar por falta de um maximo valido.
+    await expect(inserirNota({ valor: 0, escala: 'PONTOS', maximo: 0 }))
+      .rejects.toThrow(/ck_pontos_exige_maximo/)
+  })
+
+  it('faixa: PONTOS com maximo negativo e recusado por ck_pontos_exige_maximo', async () => {
+    await expect(inserirNota({ valor: 5, escala: 'PONTOS', maximo: -1 }))
+      .rejects.toThrow(/ck_pontos_exige_maximo/)
+  })
+
   it('faixa: TRI acima de 1000 e recusado', async () => {
     await expect(inserirNota({ valor: 1000.01, escala: 'TRI' }))
       .rejects.toThrow(/ck_tri_faixa/)
