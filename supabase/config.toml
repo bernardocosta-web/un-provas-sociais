@@ -172,8 +172,14 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
+# Task M1-A: mantido em true de propósito. Este é o interruptor GLOBAL de
+# cadastro; desligá-lo bloquearia também o primeiro login via Google (que cria
+# o usuário nesse momento). O bloqueio de e-mail/senha, magic link, telefone e
+# anônimo é feito nas seções [auth.email]/[auth.sms]/enable_anonymous_sign_ins
+# abaixo, não aqui.
 enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
+# Task M1-A: mantido em false — login só pelo Google.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
@@ -217,7 +223,15 @@ web3 = 30
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
-enable_signup = true
+# Task M1-A: apesar do nome, esta chave é traduzida pela CLI para o campo
+# `external_email_enabled` da API de Auth (confirmado lendo o binário da CLI
+# 2.117.0: configPath ["auth","email","enable_signup"] -> apiKey
+# "external_email_enabled"). Ou seja, esta é a mesma chave que liga/desliga o
+# provedor de e-mail inteiro (GOTRUE_EXTERNAL_EMAIL_ENABLED) — cadastro por
+# senha E magic link/OTP de usuários existentes. Não existe, nesta versão da
+# CLI, uma chave adicional/diferente para "desligar o provedor". Login só pelo
+# Google: desligado.
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
@@ -255,6 +269,8 @@ otp_expiry = 3600
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
+# Task M1-A: já estava false; confirmado (mapeia para external_phone_enabled,
+# mesmo padrão do auth.email.enable_signup acima). Login só pelo Google.
 enable_signup = false
 # If enabled, users need to confirm their phone number before signing in.
 enable_confirmations = false
@@ -333,6 +349,26 @@ skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
 email_optional = false
 
+# Task M1-A: único provedor externo ligado. Login só pelo Google —
+# eh_membro_equipe() confia no e-mail do JWT, e o Google é o único caminho
+# que garante e-mail comprovado. client_id/secret nunca em texto no repo:
+# vêm de env(...) e as variáveis ainda não existem neste ambiente local
+# (serão criadas na Task 13, manual, no painel hospedado do Google/Supabase).
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+# Overrides the default auth callback URL derived from auth.external_url.
+redirect_uri = ""
+# Overrides the default auth provider URL. Used to support self-hosted gitlab, single-tenant Azure,
+# or any other third-party OIDC providers.
+url = ""
+# If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
+skip_nonce_check = false
+# If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
+email_optional = false
+
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
 [auth.web3.solana]
@@ -385,7 +421,9 @@ deno_version = 2
 # secret_key = "env(SECRET_VALUE)"
 
 [analytics]
-enabled = true
+# Task M1-A: desligado — não é usado neste projeto e o container vector
+# (dependência do analytics local) estava em restart-loop.
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"

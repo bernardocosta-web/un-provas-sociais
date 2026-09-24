@@ -26,6 +26,13 @@ back-end próprio. Vite + Vue 3. Vitest. Interface e documentação em pt-BR.
   participação. Não "consertar" para `JOIN` na mesma participação — existe um
   teste nomeado que reprova essa mudança, e ele está certo.
 - **Lógica pura em `src/lib/`**, sem Vue e sem Supabase.
+- **Login só pelo Google.** Todo outro provedor (e-mail/senha, magic
+  link/OTP, telefone, anônimo) fica desligado, tanto em
+  `supabase/config.toml` quanto no painel hospedado. `eh_membro_equipe()`
+  confia no e-mail do JWT (`auth.jwt() ->> 'email'`); qualquer provedor que
+  emita e-mail não comprovado entrega a base a quem simplesmente digitar o
+  e-mail de um membro da equipe. Existe um teste nomeado
+  (`testes/auth/provedores.test.js`) que reprova essa mudança.
 
 ## 4. Como trabalhar aqui
 
