@@ -17,11 +17,6 @@ const MENSAGENS_POR_CODIGO = {
   42501: 'Sem permissão: este e-mail não está na lista da equipe.',
   // not_null_violation: campo obrigatório ausente do payload.
   23502: 'Campo obrigatório em branco.',
-  // foreign_key_violation: rede de segurança de remover_instituicao/
-  // remover_cadastro_simples (0014) contra uma corrida (uso inserido entre a
-  // contagem e o delete) que a trava (SELECT ... FOR UPDATE) não pegou —
-  // hoje só alcançável em teoria, não observada em teste.
-  23503: 'Não foi possível remover: o cadastro está em uso.',
 }
 
 // check_violation (23514) é traduzido pelo NOME da constraint, que o
@@ -80,6 +75,28 @@ function mensagemDeCheck(mensagem) {
     || MENSAGEM_CHECK_GENERICA
 }
 
+// foreign_key_violation (23503) tem duas origens bem diferentes, distinguidas
+// pelo texto que o Postgres poe na frente da mensagem:
+// - remover_instituicao/remover_cadastro_simples (0014): rede de seguranca
+//   contra uma corrida (uso inserido entre a contagem e o delete) que a
+//   trava (SELECT ... FOR UPDATE) nao pegou — hoje so alcancavel em teoria,
+//   nao observada em teste. A mensagem do Postgres comeca com
+//   "update or delete on table ...".
+// - salvar_depoimento (0015): a ficha referencia um cadastro (prova,
+//   materia, instituicao, curso ou aluno) que foi removido ou mesclado por
+//   outra pessoa depois que as listas carregaram. A mensagem do Postgres
+//   comeca com "insert or update on table ...".
+// Sem nenhum dos dois textos (ou sem mensagem), fica a de remocao — e o caso
+// de hoje nos cadastros.
+const MENSAGEM_REMOCAO_EM_USO = 'Não foi possível remover: o cadastro está em uso.'
+const MENSAGEM_CADASTRO_SUMIU =
+  'Um cadastro escolhido (prova, matéria, instituição, curso ou aluno) não existe mais. Escolha de novo e salve.'
+const PADRAO_FK_AO_SALVAR = /insert or update on table/
+
+function mensagemDeChaveEstrangeira(mensagem) {
+  return PADRAO_FK_AO_SALVAR.test(mensagem ?? '') ? MENSAGEM_CADASTRO_SUMIU : MENSAGEM_REMOCAO_EM_USO
+}
+
 const MENSAGEM_RLS_STORAGE = 'Sem permissão: este e-mail não está na lista da equipe.'
 const MENSAGEM_DECODE_IMAGEM = 'Não foi possível ler a imagem; use PNG, JPG ou WebP.'
 
@@ -96,6 +113,7 @@ const PADRAO_DECODE_IMAGEM = /decod/i
 export function mensagemDeErro(erro) {
   const codigo = erro?.code
   if (String(codigo) === '23514') return mensagemDeCheck(erro?.message)
+  if (String(codigo) === '23503') return mensagemDeChaveEstrangeira(erro?.message)
   if (codigo && MENSAGENS_POR_CODIGO[codigo]) return MENSAGENS_POR_CODIGO[codigo]
 
   const mensagem = erro?.message ?? String(erro)

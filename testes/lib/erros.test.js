@@ -149,11 +149,31 @@ describe('mensagemDeErro', () => {
   // Rede de seguranca de remover_instituicao/remover_cadastro_simples
   // (0014): se uma corrida escapar da trava (SELECT ... FOR UPDATE) e o
   // delete for rejeitado pela FK restrict, o codigo chega como 23503.
-  it('traduz violacao de chave estrangeira (23503, ex.: remover cadastro em uso) para pt-BR', () => {
-    expect(mensagemDeErro({
-      code: '23503',
-      message: 'update or delete on table "prova" violates foreign key constraint "participacao_prova_id_fkey" on table "participacao"',
-    })).toBe('Não foi possível remover: o cadastro está em uso.')
+  // 23503 tambem chega ao SALVAR uma ficha cujo cadastro relacionado
+  // (prova, materia, instituicao, curso ou aluno) foi removido ou mesclado
+  // por outra pessoa depois que as listas carregaram — mesmo SQLSTATE, mas
+  // outra mensagem, distinguida pelo texto que o Postgres poe na frente.
+  describe('violacao de chave estrangeira (23503) por texto da mensagem', () => {
+    it('"update or delete on table" (remover cadastro em uso) mantem a mensagem de remocao', () => {
+      expect(mensagemDeErro({
+        code: '23503',
+        message: 'update or delete on table "prova" violates foreign key constraint "participacao_prova_id_fkey" on table "participacao"',
+      })).toBe('Não foi possível remover: o cadastro está em uso.')
+    })
+
+    it('"insert or update on table" (salvar com cadastro que sumiu) explica e pede para escolher de novo', () => {
+      expect(mensagemDeErro({
+        code: '23503',
+        message: 'insert or update on table "participacao" violates foreign key constraint "participacao_prova_id_fkey" on table "prova"',
+      })).toBe('Um cadastro escolhido (prova, matéria, instituição, curso ou aluno) não existe mais. Escolha de novo e salve.')
+    })
+
+    it('sem texto reconhecivel mantem a mensagem de remocao (o caso de hoje nos cadastros)', () => {
+      expect(mensagemDeErro({ code: '23503', message: 'foreign key constraint violated' }))
+        .toBe('Não foi possível remover: o cadastro está em uso.')
+      expect(mensagemDeErro({ code: '23503' }))
+        .toBe('Não foi possível remover: o cadastro está em uso.')
+    })
   })
 })
 
