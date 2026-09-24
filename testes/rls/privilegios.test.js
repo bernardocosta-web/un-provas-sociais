@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { conectar, comoUsuario } from './ajuda.js'
+import { conectar } from './ajuda.js'
 
 // Arquivo separado de catalogo.test.js: la mora a RLS (quais linhas cada um
 // ve); aqui mora o privilegio (se o papel pode sequer tocar o objeto), que
-// o Postgres checa antes da RLS. Juntar os dois passaria das ~200 linhas.
+// o Postgres checa antes da RLS. So varredura de catalogo; a prova de que os
+// fluxos do app funcionam sob esses privilegios fica em
+// privilegios_fluxos.test.js.
 //
 // O projeto hospedado nao expoe tabelas novas automaticamente; a 0011
 // igualou o local a ele. Toda varredura le a ACL efetiva: coalesce com
@@ -15,8 +17,6 @@ const TABELAS = ['aluno', 'aluno_perfil', 'curso', 'depoimento',
   'materia', 'membro_equipe', 'nota', 'participacao', 'prova', 'resultado']
 
 const FUNCOES_DO_APP = ['buscar_depoimentos(p_filtros jsonb)', 'eh_membro_equipe()']
-
-const MEMBRO = 'membro@exemplo.test'
 
 async function consultar(sql, params) {
   const c = await conectar()
@@ -185,41 +185,5 @@ describe('privilegios padrao para objetos futuros', () => {
       await c.query('rollback').catch(() => {})
       await c.end()
     }
-  })
-})
-
-describe('o app continua funcionando sob os privilegios minimos', () => {
-  const garantirMembro = () => consultar(
-    `insert into membro_equipe (email, nome, ativo) values ($1, 'Membro Ativo', true)
-     on conflict (email) do nothing`, [MEMBRO])
-
-  it('membro insere em tabela com identidade sem privilegio na sequencia', async () => {
-    await garantirMembro()
-    const linhas = await comoUsuario(MEMBRO, (c) => c.query(
-      `insert into instituicao (nome_canonico) values ('SONDA PRIVILEGIO') returning id`)
-      .then((r) => r.rows))
-    expect(linhas.length).toBe(1)
-  })
-
-  it('trigger de atualizado_em dispara para authenticated', async () => {
-    const [inserido] = await consultar(
-      `insert into depoimento (texto_completo, fonte) values ('Sonda privilegio', 'MANUAL')
-       returning id, atualizado_em::text as atualizado_em`)
-    await garantirMembro()
-    const [linha] = await comoUsuario(MEMBRO, (c) => c.query(
-      `update depoimento set texto_completo = 'Sonda privilegio 2' where id = $1
-       returning atualizado_em > $2::timestamptz as avancou`,
-      [inserido.id, inserido.atualizado_em]).then((r) => r.rows))
-    expect(linha).toEqual({ avancou: true })
-  })
-
-  it('trigger de transicao dispara para authenticated', async () => {
-    const [inserido] = await consultar(
-      `insert into depoimento (texto_completo, fonte) values ('Sonda transicao', 'MANUAL')
-       returning id`)
-    await garantirMembro()
-    await expect(comoUsuario(MEMBRO, (c) => c.query(
-      `update depoimento set status_uso = 'FEITO' where id = $1`, [inserido.id])))
-      .rejects.toThrow(/transicao de status invalida: DISPONIVEL -> FEITO/)
   })
 })
