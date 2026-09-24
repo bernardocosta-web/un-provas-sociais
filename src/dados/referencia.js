@@ -111,10 +111,12 @@ export async function criarProva({ nome, instituicao_id }) {
 }
 
 // Instituicao nao e "simples": a coluna e nome_canonico, nao nome. Usado pelo
-// combobox da ficha (Task 20) para criar na hora.
+// combobox da ficha (Task 20) para criar na hora. Apara antes de enviar
+// (revisao do Marco 3, item 3) para nao depender so do btrim de
+// salvar_instituicao: aqui o insert e direto na tabela, sem passar pela RPC.
 export async function criarInstituicao(nome_canonico) {
   const { data, error } = await supabase
-    .from('instituicao').insert({ nome_canonico })
+    .from('instituicao').insert({ nome_canonico: nome_canonico.trim() })
     .select('id, nome_canonico, ativo').single()
   if (error) throw error
   return { ...data, apelidos: [] }

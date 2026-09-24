@@ -41,6 +41,13 @@ function removerApelido(indice) {
 // continua valendo.
 async function salvar() {
   erro.value = ''
+  const nomeAparado = form.nome_canonico.trim()
+  if (!nomeAparado) {
+    // Mesma mensagem pt-BR do check ck_instituicao_nome (src/lib/erros.js),
+    // sem precisar de uma viagem ao banco para o nome vazio ser recusado.
+    erro.value = mensagemDeErro({ code: '23514' })
+    return
+  }
   salvando.value = true
   const antigo = form.logo_path
   let novo = null
@@ -49,7 +56,9 @@ async function salvar() {
       const comprimido = await comprimir(arquivoEscolhido.value)
       novo = await enviarLogo(comprimido, `${crypto.randomUUID()}.webp`)
     }
-    await salvarInstituicao({ ...form, logo_path: novo ?? antigo, apelidos: apelidos.value })
+    await salvarInstituicao({
+      ...form, nome_canonico: nomeAparado, logo_path: novo ?? antigo, apelidos: apelidos.value,
+    })
   } catch (e) {
     if (novo) await removerLogo(novo).catch(() => {})
     erro.value = mensagemDeErro(e)

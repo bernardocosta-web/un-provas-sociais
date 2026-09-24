@@ -157,6 +157,33 @@ describe('salvar_instituicao', () => {
     }
   })
 
+  // Revisao do Marco 3, item 3: nome_canonico e gravado aparado (btrim), nao
+  // cru. Sem isso, "UFJF " (com espaco a mais, ex.: colado do Excel) nao
+  // colide com "UFJF" ja cadastrada — duas linhas para a mesma instituicao.
+  it('apara nome_canonico (btrim) e colide com um cadastro existente ja aparado', async () => {
+    const c = await conectar()
+    try {
+      await c.query('begin')
+      const sufixo = 'MARCADORSALVAR6'
+      await c.query('select public.salvar_instituicao($1::jsonb)', [
+        JSON.stringify({ nome_canonico: `UFJF ${sufixo}` }),
+      ])
+
+      await c.query('savepoint antes_da_tentativa')
+      await expect(c.query('select public.salvar_instituicao($1::jsonb)', [
+        JSON.stringify({ nome_canonico: `UFJF ${sufixo} ` }),
+      ])).rejects.toMatchObject({ code: '23505' })
+      await c.query('rollback to savepoint antes_da_tentativa')
+
+      const linhas = await c.query(
+        'select nome_canonico from instituicao where nome_canonico = $1', [`UFJF ${sufixo}`])
+      expect(linhas.rows).toHaveLength(1)
+    } finally {
+      await c.query('rollback').catch(() => {})
+      await c.end()
+    }
+  })
+
   // Pelo caminho do app: authenticated precisa de EXECUTE (0012) e de
   // privilegio nas tabelas (0011); a RLS decide as linhas.
   it('membro ativo da equipe salva pela API', async () => {

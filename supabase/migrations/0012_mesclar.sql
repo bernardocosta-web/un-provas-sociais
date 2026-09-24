@@ -98,7 +98,10 @@ grant execute on function public.mesclar_instituicoes(bigint, bigint) to authent
 -- p_dados: {"id"?: bigint, "nome_canonico": text, "logo_path"?: text,
 -- "ativo"?: boolean, "apelidos"?: text[]}. "id" ausente ou nulo insere;
 -- presente, atualiza (erro se nao existir). "ativo" ausente preserva o valor
--- atual no update, ou usa o default true no insert.
+-- atual no update, ou usa o default true no insert. "nome_canonico" e gravado
+-- aparado (btrim): sem isso, "UFJF " nao colide com "UFJF" ja cadastrada
+-- (unique e sobre o valor cru) e duas linhas passam a existir para a mesma
+-- instituicao; ck_instituicao_nome ja recusa o que sobra em branco.
 create or replace function public.salvar_instituicao(p_dados jsonb)
 returns bigint
 language plpgsql
@@ -113,13 +116,13 @@ begin
   if v_id is null then
     insert into public.instituicao (nome_canonico, logo_path, ativo)
     values (
-      p_dados->>'nome_canonico',
+      btrim(p_dados->>'nome_canonico'),
       p_dados->>'logo_path',
       coalesce((p_dados->>'ativo')::boolean, true))
     returning id into v_id;
   else
     update public.instituicao set
-      nome_canonico = p_dados->>'nome_canonico',
+      nome_canonico = btrim(p_dados->>'nome_canonico'),
       logo_path = p_dados->>'logo_path',
       ativo = coalesce((p_dados->>'ativo')::boolean, ativo)
     where id = v_id;
