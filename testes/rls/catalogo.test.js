@@ -146,4 +146,36 @@ describe('catalogo', () => {
       await cliente.end()
     }
   })
+
+  it('toda tabela de public com coluna atualizado_em tem o trigger trg_tocar_atualizado_em', async () => {
+    const cliente = await conectar()
+    try {
+      // Nao pode passar por vazio: se nenhuma tabela tiver a coluna, a
+      // varredura abaixo nao esta olhando onde deveria (ou a coluna sumiu).
+      const comColuna = await cliente.query(`
+        select table_name as tabela
+        from information_schema.columns
+        where table_schema = 'public' and column_name = 'atualizado_em'
+        order by 1
+      `)
+      expect(comColuna.rows.length).toBeGreaterThan(0)
+
+      const { rows } = await cliente.query(`
+        select c.relname as tabela
+        from information_schema.columns col
+        join pg_class c on c.relname = col.table_name
+        join pg_namespace n on n.oid = c.relnamespace and n.nspname = col.table_schema
+        where col.table_schema = 'public'
+          and col.column_name = 'atualizado_em'
+          and not exists (
+            select 1 from pg_trigger t
+            where t.tgrelid = c.oid and t.tgname = 'trg_tocar_atualizado_em'
+          )
+        order by 1
+      `)
+      expect(rows.map((r) => r.tabela)).toEqual([])
+    } finally {
+      await cliente.end()
+    }
+  })
 })

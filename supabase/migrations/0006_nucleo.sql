@@ -94,3 +94,21 @@ begin
       t || '_equipe', t);
   end loop;
 end $$;
+
+-- Generica: nao conhece a tabela que a usa, entao qualquer tabela futura
+-- com uma coluna atualizado_em so precisa criar o trigger abaixo, sem
+-- duplicar a funcao.
+create or replace function public.tocar_atualizado_em()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.atualizado_em := now();
+  return new;
+end;
+$$;
+
+create trigger trg_tocar_atualizado_em
+  before update on depoimento
+  for each row execute function public.tocar_atualizado_em();
