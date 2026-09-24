@@ -1718,6 +1718,25 @@ git commit -m "feat(db): buscar_depoimentos com semantica de nivel de depoimento
 >
 > Testes de regressão de cada item em `testes/lib/filtros.test.js`.
 
+> **Fix round 2 (Marco 2, 2026-09-24).** Revisão do Marco 2 encontrou mais dois problemas,
+> corrigidos junto (ver `.superpowers/sdd/2026-09-23-nucleo-depoimentos/marco-2-fix-report.md`):
+> (1) uma URL editada à mão ainda derrubava a busca com erro de banco em vez de tratar como
+> ausente — `instituicoes=1.5`/`provas=1e30` (não são `Number.isSafeInteger`), `ano=99999`/
+> `ano_de=-40000` (fora da faixa 1990-2100 de `ck_ano`), `notas=1.5:90:PERCENTUAL` (materia_id
+> decimal → erro de bigint), `notas=1:90:FOO` (família desconhecida caindo no grupo PERCENTUAL
+> por engano) e `print=sim` (virava `false` em vez de `null`). Corrigido centralizando a coerção
+> numérica (`paraNumero`) e aplicando as mesmas regras — id exige `Number.isSafeInteger(n) &&
+> n > 0`, ano exige a faixa de `ck_ano` — tanto em `urlParaFiltros` quanto em `montarFiltros`
+> (defesa em profundidade contra string de formulário, ex.: `'7'`). Os helpers de coerção/parsing
+> de URL foram extraídos para `src/lib/normalizarFiltros.js`, módulo irmão, porque `filtros.js`
+> tinha passado de ~300 linhas com essas correções.
+> (2) `ESTADO_VAZIO` só congelava o objeto, não os arrays internos: uma cópia rasa
+> (`{ ...ESTADO_VAZIO }`) ainda compartilhava os mesmos arrays, e `copia.tipos.push(...)` mutava
+> o `ESTADO_VAZIO` de todo mundo. Cada array interno agora é congelado individualmente, e uma
+> nova função `estadoVazio()` devolve uma cópia nova e mutável. **A Task 21 (`PainelFiltros.vue`,
+> botão de limpar filtros) deve usar `estadoVazio()` para montar o estado limpo — nunca
+> `{ ...ESTADO_VAZIO }` nem mutar `ESTADO_VAZIO` diretamente.**
+
 **Files:**
 - Create: `src/lib/filtros.js`, `testes/lib/filtros.test.js`
 
