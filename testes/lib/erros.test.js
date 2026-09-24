@@ -28,6 +28,13 @@ describe('mensagemDeErro', () => {
       .toBe('não dá para mesclar: o apelido "UFJF" já pertence a "Terceira"')
   })
 
+  // Checagem deferida da 0013 (apelido x nome de outra instituicao): chega
+  // ao salvar_instituicao do FormInstituicao com P0001 e tem de passar igual.
+  it('mantem a mensagem da checagem apelido x nome (0013), sem alteracao', () => {
+    expect(mensagemDeErro({ code: 'P0001', message: 'o apelido "TESTE B" já é o nome de outra instituição: "TESTE B"' }))
+      .toBe('o apelido "TESTE B" já é o nome de outra instituição: "TESTE B"')
+  })
+
   it('traduz falta de permissao do Postgres (42501) para pt-BR', () => {
     expect(mensagemDeErro({ code: '42501', message: 'new row violates row-level security policy for table "instituicao"' }))
       .toBe('Sem permissão: este e-mail não está na lista da equipe.')
