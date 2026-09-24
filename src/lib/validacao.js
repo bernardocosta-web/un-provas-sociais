@@ -8,6 +8,10 @@
 // no meio da frase, que e pior que resumo longo.
 export const LIMITE_AVISO_RESUMO = 200
 
+// nota.valor_original e nota.valor_maximo sao numeric(8,2) (0007): acima
+// disso o banco recusa com "numeric field overflow".
+export const VALOR_NOTA_MAXIMO = 999999.99
+
 // Valores vindos de formulário chegam como string ('18', ' 20 ', '').
 // Number('') é 0, não ausência — por isso o trim e a checagem de vazio
 // antes de converter, senão '9' > '20' (comparação lexica) engana a
@@ -64,6 +68,8 @@ export function validarDepoimento(ficha) {
     const ano = numero(participacao.ano)
     if (ano == null) {
       erros.push('Toda participação precisa de ano.')
+    } else if (!Number.isInteger(ano)) {
+      erros.push('O ano da participação precisa ser um número inteiro.')
     } else if (ano < 1990 || ano > 2100) {
       erros.push('O ano da participação precisa estar entre 1990 e 2100.')
     }
@@ -77,6 +83,12 @@ export function validarDepoimento(ficha) {
         erros.push('Toda nota precisa de um valor.')
       } else if (valor < 0) {
         erros.push('O valor da nota não pode ser negativo.')
+      } else if (valor > VALOR_NOTA_MAXIMO) {
+        erros.push('O valor da nota não pode passar de 999999,99.')
+      }
+      const maximoInformado = numero(nota.valor_maximo)
+      if (maximoInformado != null && maximoInformado > VALOR_NOTA_MAXIMO) {
+        erros.push('O valor máximo da nota não pode passar de 999999,99.')
       }
       if (nota.escala === 'PERCENTUAL' && valor != null && valor > 100) {
         erros.push('Nota em percentual não pode passar de 100.')

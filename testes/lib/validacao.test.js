@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { validarDepoimento, LIMITE_AVISO_RESUMO } from '../../src/lib/validacao.js'
+import {
+  validarDepoimento, LIMITE_AVISO_RESUMO, VALOR_NOTA_MAXIMO,
+} from '../../src/lib/validacao.js'
 
 const BASE = {
   texto_completo: 'Passei no ITA',
@@ -173,6 +175,44 @@ describe('validarDepoimento', () => {
   it('ano como string valida e sem erro', () => {
     const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: '2025',
       notas: [], resultados: [] }] }
+    expect(validarDepoimento(ficha)).toEqual([])
+  })
+
+  // Revisao conjunta (2026-09-24): participacao.ano e integer — '2020.5'
+  // chegaria ao banco e seria recusado com erro cru.
+  it('ano decimal e erro de inteiro', () => {
+    const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: '2020.5',
+      notas: [], resultados: [] }] }
+    expect(validarDepoimento(ficha))
+      .toContain('O ano da participação precisa ser um número inteiro.')
+  })
+
+  // valor_original e valor_maximo sao numeric(8,2): acima de 999999.99 o
+  // banco recusa com "numeric field overflow".
+  it('o teto de valor de nota e o de numeric(8,2)', () => {
+    expect(VALOR_NOTA_MAXIMO).toBe(999999.99)
+  })
+
+  it('valor_original acima de 999999.99 e erro', () => {
+    const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: 2025,
+      notas: [{ materia_id: 1, valor_original: '1000000', valor_maximo: '2000000',
+        escala: 'PONTOS' }], resultados: [] }] }
+    expect(validarDepoimento(ficha))
+      .toContain('O valor da nota não pode passar de 999999,99.')
+  })
+
+  it('valor_maximo acima de 999999.99 e erro', () => {
+    const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: 2025,
+      notas: [{ materia_id: 1, valor_original: 10, valor_maximo: 1000000,
+        escala: 'PONTOS' }], resultados: [] }] }
+    expect(validarDepoimento(ficha))
+      .toContain('O valor máximo da nota não pode passar de 999999,99.')
+  })
+
+  it('valores exatamente em 999999.99 sao validos', () => {
+    const ficha = { ...BASE, participacoes: [{ prova_id: 1, ano: 2025,
+      notas: [{ materia_id: 1, valor_original: '999999.99', valor_maximo: '999999.99',
+        escala: 'PONTOS' }], resultados: [] }] }
     expect(validarDepoimento(ficha)).toEqual([])
   })
 })
