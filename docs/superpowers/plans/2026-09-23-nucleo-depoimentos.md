@@ -1969,6 +1969,13 @@ git commit -m "feat(lib): montagem de filtros e serializacao na URL"
 > do git). O Step 5 ganhou as consultas prontas para conferir, no hospedado, que `anon` não tem
 > privilégio em `public` e o que o `pg_default_acl` concede.
 
+> **Nomes reais do projeto e do OAuth client (2026-09-25).** O Step 2 abaixo diz "criar
+> projeto `un-provas-sociais`" como sugestão de nome — o projeto **Google Cloud** criado de
+> verdade se chama **"UN Aprovados"**, e o OAuth client do Step 2.5 ("Aplicativo da Web") se
+> chama **"UN Aprovados Web"**, não "un-provas-sociais"/"Supabase". Mesmo client reaproveitado
+> pela Task 22, Rota B, ao acrescentar o escopo `drive.file` para o backup (ver emenda na
+> Task 22).
+
 **Files:** nenhum.
 
 **Interfaces:**
@@ -4477,6 +4484,52 @@ git commit -m "feat: lista com filtros, abas por fonte e estado na URL"
 
 ### Task 22 — MANUAL (Bernardo): destino do backup e Healthchecks
 
+> **Emenda pós-aprovação (2026-09-24/25) — Rota B confirmada, passo a passo real.**
+> A UN não tem Google Workspace (Step 1): a rota usada é a **B** (Step 2B), não a A.
+> O projeto Google Cloud e o OAuth client já existem, reaproveitados do login (Task
+> 13): projeto **"UN Aprovados"**, client **"UN Aprovados Web"** — não
+> "un-provas-sociais"/"Supabase" como o texto original desta tarefa e da Task 13
+> sugeriam (nomes corrigidos lá também, ver emenda na Task 13).
+>
+> Porque o escopo é `https://www.googleapis.com/auth/drive.file`, o app só alcança
+> arquivos e pastas que **ele próprio** criou — **a pasta de backup não pode ser
+> criada pela interface normal do Drive.** Passo a passo pelo OAuth 2.0 Playground
+> (<https://developers.google.com/oauthplayground>), substituindo o Step 2B.4 abaixo:
+> 1. Engrenagem (canto superior direito) → **Use your own OAuth credentials** →
+>    colar Client ID e Client Secret de "UN Aprovados Web". Esse client precisa ter
+>    `https://developers.google.com/oauthplayground` entre os **URIs de
+>    redirecionamento autorizados** (Google Cloud → Credenciais → editar o client).
+> 2. **Step 1** (coluna da esquerda), em "Input your own scopes":
+>    `https://www.googleapis.com/auth/drive.file` → **Authorize APIs** → entrar com a
+>    conta Google da UN.
+> 3. **Step 2 — Exchange authorization code for tokens** → copiar o **refresh
+>    token** → Secret `GDRIVE_REFRESH_TOKEN`.
+> 4. **Step 3**: HTTP method `POST`; Request URI
+>    `https://www.googleapis.com/drive/v3/files`; **Add headers** →
+>    `Content-Type: application/json`; request body
+>    `{"name":"Backups UN Provas Sociais","mimeType":"application/vnd.google-apps.folder"}`
+>    → **Send the request** → o `"id"` da resposta é o Secret `GDRIVE_FOLDER_ID`.
+> 5. Mesmo token e mesmas credenciais servem para tudo (não há "um token por
+>    operação"). Secrets desta rota: `GDRIVE_OAUTH_CLIENT`
+>    (`{"client_id":"…","client_secret":"…"}` de "UN Aprovados Web"),
+>    `GDRIVE_REFRESH_TOKEN`, `GDRIVE_FOLDER_ID`.
+> 6. **O app tem que continuar "Em produção".** Em "Modo de teste" o refresh token
+>    expira em 7 dias e o backup pararia toda semana, sempre por um motivo que não
+>    aparece como erro de código.
+>
+> Rota A (Drive compartilhado, Step 2A) segue sem uso e sem alteração — só passa a
+> valer se a UN vier a ter Google Workspace no futuro.
+>
+> **`SUPABASE_DB_URL` (Step 4) tem que ser a URI do Session pooler**, não a conexão
+> direta: os runners do GitHub Actions são só IPv4, e a conexão direta do plano
+> gratuito do Supabase é só IPv6. Pegar em Settings → Database → Connection string →
+> aba **Session pooler**. `SUPABASE_SERVICE_ROLE_KEY` pode ser a **Secret key** nova
+> (`sb_secret_…`) ou a `service_role` legada — qualquer uma das duas serve.
+>
+> Estes fatos também foram para o checklist manual (`docs/checklists/marco-6.md`,
+> seção "Task 22"); o `docs/runbook-backup.md` da Task 23 (ainda não escrito) deve
+> repeti-los (ver emenda na Task 23).
+
 **Files:** nenhum.
 
 **Interfaces:**
@@ -4550,6 +4603,18 @@ Resultado: ____________________
 > 4. `pg_dump` (Step "Dump do banco") não é afetado: usa a URL do banco com o papel
 >    `postgres`, não a Data API. `scripts/backup.mjs` usa a service key só na Storage API
 >    (schema `storage`), que a `0011` não alterou.
+
+> **Emenda (2026-09-25) — o runbook repete os fatos da Rota B.** O `docs/runbook-backup.md`
+> ainda não existe (esta tarefa o cria). O Step 3 abaixo, item 1 ("Qual rota está em
+> uso e por quê"), tem que repetir os fatos já registrados na emenda da Task 22:
+> projeto Google Cloud **"UN Aprovados"**, OAuth client **"UN Aprovados Web"**; a
+> restrição do escopo `drive.file` (a pasta de backup só pode ter sido criada pelo
+> próprio app, nunca pela interface normal do Drive); o passo a passo pelo OAuth 2.0
+> Playground para gerar `GDRIVE_REFRESH_TOKEN`/`GDRIVE_FOLDER_ID`; a exigência de o
+> app continuar "Em produção"; e que `SUPABASE_DB_URL` é a URI do **Session pooler**
+> (runners do GitHub Actions são IPv4, a conexão direta do plano gratuito é IPv6).
+> Não basta linkar para a Task 22 do plano — o runbook é o documento consultado num
+> incidente, sem tempo para procurar contexto em outro lugar.
 
 **Files:**
 - Create: `.github/workflows/backup.yml`, `scripts/backup.mjs`, `docs/runbook-backup.md`, `supabase/migrations/NNNN_ping_backup.sql` (próximo número livre)

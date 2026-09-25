@@ -1,8 +1,57 @@
-# Marco 6 — checklist manual (total: ~37 min)
+# Marco 6 — checklist manual (total: ~55 min)
 
 Só o que não dá para automatizar (`CLAUDE.md`, seção 5). O Marco 6 acrescenta
-os itens dele (backup, anti-pausa, publicação); por enquanto só os itens que
-dependem do deploy (Task 25) e vieram do Marco 5.
+os itens dele (backup, anti-pausa, publicação): a Task 22 (destino do backup e
+Healthchecks, ~18 min) não depende do deploy e pode ser feita a qualquer
+momento; os demais (~37 min) dependem do deploy (Task 25) e vieram do Marco 5.
+
+## Task 22 — destino do backup, Rota B (OAuth) (~18 min)
+
+A UN não tem Google Workspace: a rota usada é a B (conta pessoal via OAuth),
+não a A (Drive compartilhado). Reaproveita o projeto Google Cloud **"UN
+Aprovados"** e o OAuth client **"UN Aprovados Web"** já criados na Task 13 —
+não "un-provas-sociais"/"Supabase" como um texto anterior do plano dizia
+(corrigido lá também). Porque o escopo é `drive.file`, o app só alcança
+arquivos e pastas que ele mesmo criou: **a pasta de backup não pode ser
+criada pela interface normal do Drive**, só pelo passo a passo abaixo.
+
+- [ ] (~2 min) No Google Cloud, projeto "UN Aprovados" → **APIs e serviços →
+  Credenciais** → abrir o client OAuth "UN Aprovados Web" e conferir que
+  `https://developers.google.com/oauthplayground` está entre os **URIs de
+  redirecionamento autorizados**; se não estiver, adicionar e salvar.
+- [ ] (~3 min) No [OAuth 2.0 Playground](https://developers.google.com/oauthplayground):
+  engrenagem (canto superior direito) → **Use your own OAuth credentials** →
+  colar o Client ID e o Client Secret de "UN Aprovados Web".
+- [ ] (~1 min) **Step 1** (coluna da esquerda) → em "Input your own scopes",
+  colar `https://www.googleapis.com/auth/drive.file` → **Authorize APIs** →
+  entrar com a conta Google da UN.
+- [ ] (~1 min) **Step 2 — Exchange authorization code for tokens** → copiar o
+  **refresh token** → Secret `GDRIVE_REFRESH_TOKEN`.
+- [ ] (~3 min) **Step 3**: método `POST`; Request URI
+  `https://www.googleapis.com/drive/v3/files`; **Add headers** →
+  `Content-Type: application/json`; corpo da requisição
+  `{"name":"Backups UN Provas Sociais","mimeType":"application/vnd.google-apps.folder"}`
+  → **Send the request** → copiar o `"id"` da resposta → Secret
+  `GDRIVE_FOLDER_ID`.
+- [ ] (~1 min) Secret `GDRIVE_OAUTH_CLIENT` =
+  `{"client_id":"…","client_secret":"…"}` (mesmo client "UN Aprovados Web").
+- [ ] (~1 min) Confirmar que o app OAuth continua **"Em produção"** (não "Em
+  teste") — em teste o refresh token expira em 7 dias e o backup pararia toda
+  semana.
+- [ ] (~2 min) Secret `SUPABASE_DB_URL` = a URI do **Session pooler** (Supabase
+  → Settings → Database → Connection string → aba Session pooler), **não** a
+  conexão direta — os runners do GitHub Actions são só IPv4, e a conexão
+  direta do plano gratuito é só IPv6.
+- [ ] (~1 min) Secret `SUPABASE_SERVICE_ROLE_KEY` = a **Secret key** nova
+  (`sb_secret_…`) ou a `service_role` legada — qualquer uma serve.
+- [ ] (~3 min) Conta gratuita em [healthchecks.io](https://healthchecks.io) →
+  **Add Check** → nome `backup-un-provas-sociais` → **Period** 1 day, **Grace
+  time** 6 hours → confirmar que o e-mail de alerta é o seu → copiar a **Ping
+  URL** para o Secret `HEALTHCHECKS_PING_URL` (é segredo: quem a tiver
+  consegue silenciar o alarme pingando no lugar do job).
+
+Rota A (Drive compartilhado) fica sem uso — só se aplica se a UN vier a ter
+Google Workspace no futuro.
 
 ## Conectar o repositório e publicar pela primeira vez (~25 min)
 
