@@ -70,3 +70,20 @@ describe('ping anti-pausa (REST em curso)', () => {
     expect(erro.etapa).toBe('ping anti-pausa')
   })
 })
+
+describe('paginacao da listagem (Storage falso)', () => {
+  it('segue ate uma pagina vazia, mesmo se o servidor devolver menos que o limite pedido', async () => {
+    // Servidor que corta cada pagina em 2 itens, qualquer que seja o limite.
+    const itens = ['a', 'b', 'c', 'd', 'e'].map((n) => ({ name: `${n}.png`, id: n, updated_at: 't', metadata: { size: 1 } }))
+    const pedidos = []
+    const fetch = async (url, opcoes) => {
+      const { offset } = JSON.parse(opcoes.body)
+      pedidos.push(offset)
+      return new Response(JSON.stringify(itens.slice(offset, offset + 2)), { status: 200 })
+    }
+    const objetos = await criarClienteSupabase({ url: 'http://storage.falso', chaveServico: 'k', fetch, tamanhoPagina: 5 })
+      .listar('prints')
+    expect(objetos.map((o) => o.caminho)).toEqual(['a.png', 'b.png', 'c.png', 'd.png', 'e.png'])
+    expect(pedidos).toEqual([0, 2, 4, 5])
+  })
+})

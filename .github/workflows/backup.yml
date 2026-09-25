@@ -61,11 +61,12 @@ jobs:
           HEALTHCHECKS_PING_URL: ${{ secrets.HEALTHCHECKS_PING_URL }}
         run: node scripts/backup.mjs
 
-      # Cobre falhas ANTES do script (checkout, Node, apt). Se o script ja
+      # Cobre falhas ANTES do script (checkout, Node, apt) e cancelamento
+      # (timeout do job, cancelamento manual). Se o script ja
       # mandou /fail, um segundo e inofensivo. Melhor esforco: o alarme de
       # verdade continua sendo a falta do ping de sucesso.
       - name: Avisar falha ao Healthchecks
-        if: failure()
+        if: failure() || cancelled()
         env:
           HEALTHCHECKS_PING_URL: ${{ secrets.HEALTHCHECKS_PING_URL }}
         run: |

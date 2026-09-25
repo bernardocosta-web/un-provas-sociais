@@ -116,6 +116,10 @@ export async function subirDriveFalso({ pastas = [], falhar = () => null } = {})
     const arquivo = arquivos.get(id)
     if (!arquivo) return erroGoogle(res, 404, 'notFound', `File not found: ${id}.`)
     if (req.method === 'GET') return responderJson(res, 200, metadados(arquivo))
+    if (req.method === 'PATCH') {
+      Object.assign(arquivo, JSON.parse(corpo.toString('utf8')))
+      return responderJson(res, 200, { id, trashed: arquivo.trashed })
+    }
     if (req.method === 'DELETE') {
       arquivos.delete(id)
       res.writeHead(204)

@@ -25,8 +25,10 @@ export function criarClienteSupabase({ url, chaveServico, fetch = globalThis.fet
   const detalhe = async (resposta) => (await resposta.text().catch(() => '')).slice(0, 300)
 
   async function listarPasta(bucket, pasta) {
+    // Ate uma pagina VAZIA: o servidor pode cortar a pagina abaixo do limite
+    // pedido, e "pagina curta = fim" perderia objetos em silencio.
     const itens = []
-    for (let offset = 0; ; offset += tamanhoPagina) {
+    for (let offset = 0; ;) {
       const resposta = await chamar('Storage', `${url}/storage/v1/object/list/${encodeURIComponent(bucket)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,8 +40,9 @@ export function criarClienteSupabase({ url, chaveServico, fetch = globalThis.fet
           `${await detalhe(resposta)}. Confira SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.`, { etapa: 'Storage' })
       }
       const pagina = await resposta.json()
+      if (pagina.length === 0) return itens
       itens.push(...pagina)
-      if (pagina.length < tamanhoPagina) return itens
+      offset += pagina.length
     }
   }
 

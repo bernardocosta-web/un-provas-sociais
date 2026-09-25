@@ -38,6 +38,22 @@ function url(env, nome, padrao) {
   return texto.replace(/\/+$/, '')
 }
 
+// new URL() guarda a entrada no erro (propriedade input): aqui ela e segredo.
+function uriDoBanco(env) {
+  const texto = valor(env, 'SUPABASE_DB_URL')
+  let ok = /^postgres(ql)?:\/\//.test(texto)
+  try {
+    new URL(texto)
+  } catch {
+    ok = false
+  }
+  if (!ok) {
+    throw erro('SUPABASE_DB_URL tem de ser uma URI postgresql://... (a do Session pooler do ' +
+      'Supabase; o valor nao e exibido).')
+  }
+  return texto
+}
+
 export function lerConfiguracao(env) {
   const rotaA = Boolean(valor(env, 'GDRIVE_SA_JSON'))
   const exigidas = rotaA ? OBRIGATORIAS : [...OBRIGATORIAS, ...ROTA_B]
@@ -65,7 +81,7 @@ export function lerConfiguracao(env) {
   }
 
   return {
-    bancoUrl: valor(env, 'SUPABASE_DB_URL'),
+    bancoUrl: uriDoBanco(env),
     supabaseUrl: url(env, 'SUPABASE_URL'),
     chaveServico: valor(env, 'SUPABASE_SERVICE_ROLE_KEY'),
     pastaId: valor(env, 'GDRIVE_FOLDER_ID'),

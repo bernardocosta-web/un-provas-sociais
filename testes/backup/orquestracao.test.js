@@ -58,7 +58,8 @@ function montar(extra = {}) {
 
 const pings = () => hc.requisicoes.map((r) => r.caminho.replace('/ping/x', '') || '/')
 const escritasNoDrive = () => drive.requisicoes.filter((r) => r.metodo !== 'GET')
-const dumps = () => [...drive.arquivos.values()].filter((a) => a.appProperties?.tipo === 'banco')
+const dumps = () => [...drive.arquivos.values()].filter((a) => a.appProperties?.tipo === 'banco' && !a.trashed)
+const naLixeira = () => [...drive.arquivos.values()].filter((a) => a.trashed).map((a) => a.id).sort()
 const pastaDoBucket = (bucket) => [...drive.arquivos.values()].find((a) =>
   a.appProperties?.tipo === 'pasta' && a.appProperties?.bucket === bucket)
 
@@ -88,6 +89,19 @@ describe('executarBackup — sucesso', () => {
     expect(sucesso.corpo.toString()).toMatch(/banco-2026-09-25\.sql\.gz/)
     expect(resumo).toMatchObject({ dump: 'banco-2026-09-25.sql.gz', novos: { prints: 2, logos: 1 }, apagados: 0 })
     expect(chamadas).toContain('ping')
+  })
+
+  it('ordem: ping anti-pausa antes da verificacao da pasta, que vem antes de qualquer escrita no Drive', async () => {
+    const deps = montar()
+    const ordem = []
+    const pingOriginal = deps.supabase.pingAntiPausa
+    deps.supabase.pingAntiPausa = async () => { ordem.push('ping'); return pingOriginal() }
+    const obterOriginal = deps.drive.obterArquivo
+    deps.drive.obterArquivo = async (id) => { ordem.push('verificacao'); return obterOriginal(id) }
+    const enviarOriginal = deps.drive.enviar
+    deps.drive.enviar = async (a) => { ordem.push('upload'); return enviarOriginal(a) }
+    await executarBackup(deps)
+    expect(ordem.slice(0, 3)).toEqual(['ping', 'verificacao', 'upload'])
   })
 
   it('segunda execucao e incremental: so o objeto novo ou alterado sobe; subpastas nao duplicam', async () => {
@@ -127,13 +141,16 @@ describe('executarBackup — sucesso', () => {
     expect(ficaram[0]).toBe('2026-08-01')
     expect(ficaram).toContain('2026-09-25')
     expect(resumo.apagados).toBe(10)
-    expect(drive.arquivos.has('alheio')).toBe(true)
-    expect(drive.arquivos.has('outro-tipo')).toBe(true)
-    // Apagou so depois de enviar tudo: nenhum DELETE antes do ultimo upload.
+    // Para a lixeira do Drive (recuperavel por 30 dias), nunca apagado de vez.
+    expect(naLixeira()).toEqual(antigos.slice(1, 11).map((d) => `velho-${d}`).sort())
+    expect(escritasNoDrive().filter((r) => r.metodo === 'DELETE')).toEqual([])
+    expect(drive.arquivos.get('alheio').trashed).toBe(false)
+    expect(drive.arquivos.get('outro-tipo').trashed).toBe(false)
+    // So depois de enviar tudo: nenhuma ida para a lixeira antes do ultimo upload.
     const ultimoUpload = escritasNoDrive().filter((r) => r.metodo === 'PUT').at(-1).momento
-    const deletes = escritasNoDrive().filter((r) => r.metodo === 'DELETE')
-    expect(deletes).toHaveLength(10)
-    expect(deletes.every((r) => r.momento > ultimoUpload)).toBe(true)
+    const lixeira = escritasNoDrive().filter((r) => r.metodo === 'PATCH')
+    expect(lixeira).toHaveLength(10)
+    expect(lixeira.every((r) => r.momento > ultimoUpload)).toBe(true)
   })
 })
 
@@ -143,7 +160,9 @@ describe('executarBackup — falhas', () => {
     expect(erro).toBeInstanceOf(ErroBackup)
     expect(erro.message).toMatch(/GDRIVE_FOLDER_ID/)
     expect(escritasNoDrive()).toEqual([])
-    expect(chamadas).toEqual([]) // nem ping anti-pausa, nem dump, nem download
+    // O ping anti-pausa roda ANTES da verificacao: um token do Drive morto nao
+    // pode deixar o projeto pausar. Mas nada de dump nem download.
+    expect(chamadas).toEqual(['ping'])
     expect(pings()).toEqual(['/start', '/fail'])
     expect(hc.requisicoes[1].corpo.toString()).toMatch(/verificacao da pasta do Drive.*GDRIVE_FOLDER_ID/s)
   })
@@ -158,7 +177,7 @@ describe('executarBackup — falhas', () => {
     await expect(executarBackup(deps)).rejects.toThrow(/Storage nao entregou/)
     expect(pings()).toEqual(['/start', '/fail'])
     expect(hc.requisicoes[1].corpo.toString()).toMatch(/Storage/)
-    expect(escritasNoDrive().filter((r) => r.metodo === 'DELETE')).toEqual([])
+    expect(escritasNoDrive().filter((r) => ['DELETE', 'PATCH'].includes(r.metodo))).toEqual([])
   })
 
   it('falha no dump: /fail e nada enviado', async () => {

@@ -5,12 +5,13 @@ import { dataDoBackup, nomeDoDump, escolherParaApagar } from './retencao.js'
 // Ordem do backup, com todas as dependencias injetadas (Drive, Supabase,
 // dump, Healthchecks, relogio). Layout no Drive, dentro de GDRIVE_FOLDER_ID:
 //   banco-AAAA-MM-DD.sql.gz      um por execucao; retencao 30 diarios + 12 mensais
+//     (o excedente vai para a lixeira do Drive)
 //   prints/<caminho>, logos/<caminho>   espelho INCREMENTAL dos buckets: so
 //     sobe objeto novo ou alterado; nunca apaga (todo dump retido continua
 //     com os seus arquivos). O estado ("ja enviado") mora no proprio Drive:
 //     appProperties.chave = sha256(bucket, caminho, versao).
 // Tudo que o backup cria leva appProperties.origem = MARCA.origem, e so
-// arquivo com essa marca pode ser apagado.
+// arquivo com essa marca pode ir para a lixeira.
 
 export const MARCA = Object.freeze({ origem: 'un-provas-sociais-backup' })
 export const BUCKETS = ['prints', 'logos']
@@ -50,8 +51,9 @@ async function aplicarRetencao({ drive, pastaId, registrar }) {
   const apagar = escolherParaApagar(dumps.map((a) => ({
     id: a.id, data: a.appProperties?.data, criadoEm: a.createdTime,
   })))
-  for (const id of apagar) await drive.apagar(id)
-  registrar(`retencao: ${dumps.length} dump(s) no Drive, ${apagar.length} apagado(s)`)
+  // Lixeira, nao exclusao definitiva: recuperavel por 30 dias no Drive.
+  for (const id of apagar) await drive.moverParaLixeira(id)
+  registrar(`retencao: ${dumps.length} dump(s) no Drive, ${apagar.length} para a lixeira`)
   return apagar.length
 }
 
@@ -60,11 +62,14 @@ export async function executarBackup(deps) {
   await healthchecks.inicio()
   let resumo
   try {
-    await verificarPastaDrive(drive, pastaId, rota)
-    registrar(`pasta do Drive acessivel (Rota ${rota})`)
-
+    // Anti-pausa primeiro: um problema no Drive (token morto, pasta sumida)
+    // nao pode, alem de parar o backup, deixar o projeto pausar.
     await supabase.pingAntiPausa()
     registrar('ping anti-pausa pela API REST: ok')
+
+    // Antes de qualquer dump ou upload.
+    await verificarPastaDrive(drive, pastaId, rota)
+    registrar(`pasta do Drive acessivel (Rota ${rota})`)
 
     const data = dataDoBackup(agora())
     const nome = nomeDoDump(data)
@@ -85,6 +90,6 @@ export async function executarBackup(deps) {
   }
   // ULTIMA acao, sempre: e a ausencia deste ping que dispara o alarme.
   await healthchecks.sucesso(`Backup ok: ${resumo.dump} (${resumo.bytes} bytes); novos: ` +
-    `prints ${resumo.novos.prints}, logos ${resumo.novos.logos}; dumps apagados: ${resumo.apagados}`)
+    `prints ${resumo.novos.prints}, logos ${resumo.novos.logos}; dumps para a lixeira: ${resumo.apagados}`)
   return resumo
 }

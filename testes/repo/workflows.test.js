@@ -204,13 +204,14 @@ describe('workflows do GitHub Actions (Task 25)', () => {
       // Depois dele, so passos condicionados a falha.
       const depois = passos.slice(idx + 1)
       expect(depois.length).toBeGreaterThan(0)
-      for (const p of depois) expect(p.if).toBe('failure()')
+      for (const p of depois) expect(p.if).toBe('failure() || cancelled()')
       // Nenhum passo antes dele pinga o Healthchecks com sucesso.
       for (const p of passos.slice(0, idx)) expect(p.env?.HEALTHCHECKS_PING_URL).toBeUndefined()
     })
 
-    it('manda /fail ao Healthchecks quando algo falha', () => {
-      const falha = passos.filter((p) => p.if === 'failure()')
+    it('manda /fail ao Healthchecks quando algo falha ou e cancelado', () => {
+      // Cancelado (timeout do job, cancelamento manual) tambem avisa.
+      const falha = passos.filter((p) => p.if === 'failure() || cancelled()')
       expect(falha.some((p) => /HEALTHCHECKS_PING_URL\/fail/.test(p.run ?? ''))).toBe(true)
     })
 

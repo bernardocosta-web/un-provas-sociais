@@ -1,7 +1,7 @@
 import { ErroBackup } from './erros.js'
 
 // Cliente minimo da Google Drive API v3 por fetch (sem googleapis): so as
-// cinco operacoes que o backup usa. Upload sempre resumable (duas
+// operacoes que o backup usa. Upload sempre resumable (duas
 // requisicoes), que nao tem o teto de 5 MB do multipart. supportsAllDrives
 // em tudo, para a Rota A (Drive compartilhado) funcionar sem mudar codigo.
 
@@ -25,7 +25,9 @@ export function criarClienteDrive({
   tamanhoPagina = 1000, tentativas = 3,
   esperar = (ms) => new Promise((ok) => setTimeout(ok, ms)),
 }) {
-  async function chamar(operacao, url, opcoes = {}, { json = true } = {}) {
+  // aceitar404: operacao idempotente (apagar/lixeira) repetida depois de um
+  // 5xx que na verdade ja tinha sido aplicado — o arquivo ja nao esta la.
+  async function chamar(operacao, url, opcoes = {}, { json = true, aceitar404 = false } = {}) {
     for (let tentativa = 1; ; tentativa++) {
       const token = await obterToken()
       let resposta
@@ -40,6 +42,7 @@ export function criarClienteDrive({
         throw new ErroDrive(operacao, 'sem resposta', null, causa.message)
       }
       if (resposta.ok) return json ? resposta.json() : resposta
+      if (aceitar404 && resposta.status === 404) return null
       const corpo = await resposta.json().catch(() => null)
       const transitorio = resposta.status === 429 || resposta.status >= 500
       if (transitorio && tentativa < tentativas) { await esperar(1000 * tentativa); continue }
@@ -102,7 +105,17 @@ export function criarClienteDrive({
 
     async apagar(id) {
       await chamar('files.delete', `${arquivos}/${encodeURIComponent(id)}?supportsAllDrives=true`,
-        { method: 'DELETE' }, { json: false })
+        { method: 'DELETE' }, { json: false, aceitar404: true })
+    },
+
+    // A retencao usa a lixeira, nao o apagar: o Drive guarda por 30 dias, e
+    // um erro na regra ainda tem volta.
+    async moverParaLixeira(id) {
+      await chamar('files.update (lixeira)', `${arquivos}/${encodeURIComponent(id)}?supportsAllDrives=true&fields=id`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trashed: true }),
+      }, { json: false, aceitar404: true })
     },
   }
 }

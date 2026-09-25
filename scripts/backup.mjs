@@ -6,7 +6,7 @@ import { lerConfiguracao } from './backup/config.js'
 import { criarProvedorToken } from './backup/google-token.js'
 import { criarClienteDrive } from './backup/drive.js'
 import { criarClienteSupabase } from './backup/supabase.js'
-import { criarExecutorDump, argumentosPgDump } from './backup/dump.js'
+import { criarExecutorDump, configurarPgDump } from './backup/dump.js'
 import { criarHealthchecks } from './backup/healthchecks.js'
 import { executarBackup } from './backup/orquestracao.js'
 
@@ -33,7 +33,7 @@ async function principal(env) {
     await executarBackup({
       drive: criarClienteDrive({ obterToken, urlApi: config.urlGoogleApi }),
       supabase: criarClienteSupabase({ url: config.supabaseUrl, chaveServico: config.chaveServico }),
-      executarDump: criarExecutorDump({ comando: 'pg_dump', argumentos: argumentosPgDump(config.bancoUrl) }),
+      executarDump: criarExecutorDump({ comando: 'pg_dump', ...configurarPgDump(config.bancoUrl) }),
       healthchecks: criarHealthchecks({ pingUrl: config.pingUrl }),
       agora: () => new Date(),
       pastaId: config.pastaId,

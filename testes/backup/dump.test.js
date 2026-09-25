@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { gunzipSync } from 'node:zlib'
-import { criarExecutorDump, argumentosPgDump } from '../../scripts/backup/dump.js'
+import { criarExecutorDump, configurarPgDump } from '../../scripts/backup/dump.js'
 
 // O executor roda um comando qualquer e comprime a saida. Aqui o "pg_dump" e
 // o proprio node imprimindo um dump de mentira; o de verdade (pg_dump 17 do
@@ -41,8 +41,31 @@ describe('criarExecutorDump', () => {
     await expect(executar()).rejects.toThrow(/nao encontrado/)
   })
 
-  it('argumentos do pg_dump: sem dono, sem ACL, URL como dbname', () => {
-    expect(argumentosPgDump('postgresql://u@h/db')).toEqual(
-      ['--no-owner', '--no-acl', '--dbname', 'postgresql://u@h/db'])
+  it('pg_dump sem dono e sem ACL; a senha vai por PGPASSWORD, nunca na linha de comando', () => {
+    const { argumentos, env } = configurarPgDump(
+      'postgresql://postgres.ref:se%40nha%3Fx@pooler.exemplo.test:5432/postgres')
+    expect(argumentos).toEqual(['--no-owner', '--no-acl', '--dbname',
+      'postgresql://postgres.ref@pooler.exemplo.test:5432/postgres'])
+    expect(argumentos.join(' ')).not.toContain('nha')
+    expect(env).toEqual({ PGPASSWORD: 'se@nha?x' })
+  })
+
+  it('URL sem senha: nada em PGPASSWORD', () => {
+    expect(configurarPgDump('postgresql://u@h:5432/db')).toEqual({
+      argumentos: ['--no-owner', '--no-acl', '--dbname', 'postgresql://u@h:5432/db'], env: {} })
+  })
+
+  it('o ambiente extra (PGPASSWORD) chega ao processo do dump', async () => {
+    const executar = criarExecutorDump({ comando: process.execPath, env: { PGPASSWORD: 'segredo-x' },
+      argumentos: ['-e', `process.stdout.write("senha=" + process.env.PGPASSWORD + "\\n${RODAPE}")`] })
+    expect(gunzipSync(await executar()).toString()).toContain('senha=segredo-x')
+  })
+
+  it('pg_dump travado: morto no tempo limite, com motivo claro', async () => {
+    const inicio = Date.now()
+    const executar = criarExecutorDump({ comando: process.execPath,
+      argumentos: ['-e', 'setInterval(() => {}, 1000)'], tempoLimiteMs: 300 })
+    await expect(executar()).rejects.toThrow(/passou do tempo limite/)
+    expect(Date.now() - inicio).toBeLessThan(10_000)
   })
 })

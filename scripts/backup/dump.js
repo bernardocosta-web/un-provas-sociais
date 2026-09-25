@@ -10,14 +10,34 @@ import { ErroBackup } from './erros.js'
 
 const RODAPE = '-- PostgreSQL database dump complete'
 
-export function argumentosPgDump(bancoUrl) {
-  return ['--no-owner', '--no-acl', '--dbname', bancoUrl]
+// A senha sai da URL e vai por PGPASSWORD: na linha de comando ela ficaria
+// visivel na lista de processos do runner.
+export function configurarPgDump(bancoUrl) {
+  const url = new URL(bancoUrl)
+  const senha = decodeURIComponent(url.password)
+  url.password = ''
+  return {
+    argumentos: ['--no-owner', '--no-acl', '--dbname', url.toString()],
+    env: senha ? { PGPASSWORD: senha } : {},
+  }
 }
 
-export function criarExecutorDump({ comando = 'pg_dump', argumentos }) {
+// Um pg_dump travado (pooler que nao responde) falharia so no timeout do job,
+// sem motivo. Aqui ele e morto no tempo limite, com mensagem.
+const DEZ_MINUTOS = 10 * 60 * 1000
+
+export function criarExecutorDump({ comando = 'pg_dump', argumentos, env = {}, tempoLimiteMs = DEZ_MINUTOS }) {
   return () => new Promise((resolver, rejeitar) => {
-    const falhar = (mensagem, causa) => rejeitar(new ErroBackup(mensagem, { etapa: 'dump do banco', causa }))
-    const processo = spawn(comando, argumentos, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const falhar = (mensagem, causa) => {
+      clearTimeout(relogio)
+      rejeitar(new ErroBackup(mensagem, { etapa: 'dump do banco', causa }))
+    }
+    const processo = spawn(comando, argumentos, { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...env } })
+    const relogio = setTimeout(() => {
+      processo.kill('SIGKILL')
+      falhar(`pg_dump passou do tempo limite (${Math.round(tempoLimiteMs / 1000)} s) e foi interrompido. ` +
+        'Confira se o Session pooler do Supabase esta respondendo (SUPABASE_DB_URL) e rode de novo.')
+    }, tempoLimiteMs)
     const gzip = createGzip()
     const comprimido = []
     let fim = ''
@@ -27,6 +47,7 @@ export function criarExecutorDump({ comando = 'pg_dump', argumentos }) {
 
     const concluir = () => {
       if (--pendentes > 0) return
+      clearTimeout(relogio)
       if (codigo !== 0) {
         return falhar(`${comando === 'pg_dump' ? 'pg_dump' : `pg_dump (${comando})`} terminou com ` +
           `codigo ${codigo}: ${erroPadrao.trim().slice(-1000)}. Confira SUPABASE_DB_URL (URI do ` +

@@ -70,6 +70,24 @@ describe('criarClienteDrive', () => {
     expect(drive.arquivos.has(id)).toBe(false)
   })
 
+  it('apagar e idempotente: 404 (ja apagado, p.ex. depois de um 5xx repetido) conta como sucesso', async () => {
+    await expect(cliente().apagar('nao-existe')).resolves.toBeUndefined()
+  })
+
+  it('moverParaLixeira marca trashed (PATCH) e o arquivo some da listagem; 404 tambem conta como sucesso', async () => {
+    const c = cliente()
+    const { id } = await c.enviar({ nome: 'x', pai: 'raiz', conteudo: Buffer.from('x'), mimeType: 'text/plain',
+      propriedades: { tipo: 'banco' } })
+    await c.moverParaLixeira(id)
+    expect(drive.arquivos.get(id).trashed).toBe(true)
+    const patch = drive.requisicoes.at(-1)
+    expect(patch.metodo).toBe('PATCH')
+    expect(JSON.parse(patch.corpo.toString())).toEqual({ trashed: true })
+    expect(patch.busca.get('supportsAllDrives')).toBe('true')
+    expect(await c.listar({ pai: 'raiz', propriedades: { tipo: 'banco' } })).toEqual([])
+    await expect(c.moverParaLixeira('nao-existe')).resolves.toBeUndefined()
+  })
+
   it('erro do Drive vira ErroDrive com status e motivo', async () => {
     const erro = await cliente().obterArquivo('nao-existe').catch((e) => e)
     expect(erro.name).toBe('ErroDrive')

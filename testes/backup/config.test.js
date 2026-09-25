@@ -76,6 +76,15 @@ describe('lerConfiguracao', () => {
       .toThrow(/HEALTHCHECKS_PING_URL/)
   })
 
+  it('SUPABASE_DB_URL tem de ser uma URI postgresql:// valida (sem ecoar o valor)', () => {
+    for (const ruim of [`host=x password=${SEGREDO}`, `postgresql://[${SEGREDO}`, `https://u:${SEGREDO}@h/db`]) {
+      let erro
+      try { lerConfiguracao({ ...BASE, ...ROTA_B, SUPABASE_DB_URL: ruim }) } catch (e) { erro = e }
+      expect(erro?.message).toMatch(/SUPABASE_DB_URL.*Session pooler/)
+      expect(erro.message).not.toContain(SEGREDO)
+    }
+  })
+
   it('enderecos do Google podem ser trocados (so os testes usam, apontando para servidores falsos locais)', () => {
     const c = lerConfiguracao({
       ...BASE, ...ROTA_B,
