@@ -301,6 +301,8 @@ A autorização aparece em evidência apenas na aba Forms, porque é lá que ela
 
 Nenhuma coluna específica por fonte será criada agora. A única identificada até aqui — a autorização — revelou-se de núcleo. Se o export do Google trouxer algo próprio, como a nota de 1 a 5, isso entra no #2, com o arquivo real na mesa.
 
+> **Nota (2026-09-24, revisão do Marco 5).** O PostgREST devolve no máximo `max_rows` = 1000 linhas por chamada. A contagem da lista vem do total exato do banco (`count: 'exact'`), e acima do limite a tela diz "Mostrando N de TOTAL — refine os filtros". Paginação de verdade fica pendente, para quando o subprojeto #2 trouxer volume.
+
 **Ações em massa ficam de fora de propósito:** cada post usa um depoimento, logo selecionar em lote resolveria um problema inexistente.
 
 ### 6.2 Ficha do depoimento

@@ -4333,6 +4333,14 @@ sobras zerada; `npm run build` OK.
 >   do checklist por `npm run test:e2e:capturas` (`e2e/capturas.spec.js`, só com
 >   `E2E_CAPTURAS=1`), commitadas em `docs/checklists/marco-5-telas/`; o item "site publicado"
 >   foi para `docs/checklists/marco-6.md` (deploy é a Task 25).
+> - **Revisão do Marco 5 — corte de `max_rows`**: o PostgREST corta a resposta em 1000 linhas
+>   (local e hospedado). `buscarDepoimentosComTotal` (`src/dados/depoimentos.js`) pede
+>   `count: 'exact'` na mesma chamada da RPC com embedding (funciona: provado no e2e com 1001
+>   depoimentos), e `textoContagem(carregadas, total)` mostra "Mostrando N de TOTAL — refine os
+>   filtros" quando o total passa do que veio. **Pendência:** paginação de verdade, para quando o
+>   subprojeto #2 trouxer volume (nota datada também na spec, §6.1).
+> - **Aba Todos sem colunas em destaque** (interpretação): as colunas mostradas em Todos já são
+>   as da tabela da spec; "em destaque" só diferencia as abas de fonte.
 > - **e2e existentes**: `./` agora abre a lista, então `abrirCadastros` (`e2e/ajuda/
 >   instituicoes.js`) e `e2e/acesso.spec.js` vão a `#/cadastros` (recarregando quando já estão
 >   nesse hash, porque ir ao mesmo hash não recarrega a página).
