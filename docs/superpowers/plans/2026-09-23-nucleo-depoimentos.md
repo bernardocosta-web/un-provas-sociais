@@ -4229,8 +4229,9 @@ sobras zerada; `npm run build` OK.
 >    - **`src/lib/filtros.js` (Task 12).** `ESTADO_VAZIO` ganha
 >      `temLinkOriginal: null`; `montarFiltros` emite
 >      `tem_link_original` quando presente (mesmo tratamento boolean de
->      `tem_print`); a URL usa a chave `link` (`?link=sim`/`?link=nao`),
->      convertida para `true`/`false`/ausente por `urlParaFiltros`; ida e
+>      `tem_print`); a URL usa a chave `link` (`?link=true`/`?link=false`,
+>      **mesma convenção de `print`** — emenda de implementação abaixo; não
+>      `sim`/`nao`), convertida para `true`/`false`/ausente por `urlParaFiltros`; ida e
 >      volta preservada. Testes de regressão em
 >      `testes/lib/filtros.test.js`, no padrão das emendas já registradas
 >      na Task 12.
@@ -4289,6 +4290,45 @@ sobras zerada; `npm run build` OK.
 > não um controle de `PainelFiltros.vue`; "Tem link?" refere-se só a `link_original`
 > (`tem_link_original`, migração nova com o próximo número livre conferido na hora); o botão de
 > limpar filtros usa `estadoVazio()`.
+
+> **Emenda de implementação (2026-09-24, Task 21 implementada).** O que a implementação fez
+> diferente do texto acima, ou decidiu onde o texto não dizia:
+> - **URL de "Tem link original?"**: `link=true`/`link=false` (literal), igual a `print` —
+>   decisão do controlador, para haver uma convenção só. `link=sim`/`link=nao` (e qualquer outro
+>   valor) viram "não filtra". `temPrintOuNulo` virou `booleanoOuNulo` (usado pelas duas chaves).
+> - **Migração**: `0016_busca_link_original.sql` (número conferido: a última era a `0015`).
+>   Teste de comportamento em arquivo próprio, `testes/rls/busca_link_original.test.js`
+>   (ausente, `null`, `true`, `false`, string só de espaços, combinação com `tem_print`), com
+>   marcador único por execução e limpeza no `afterAll`.
+> - **Step 7 virou e2e** (regra do dono, `CLAUDE.md` §5): `e2e/lista.spec.js` (critério de
+>   pronto com controles, URL copiada numa aba nova, linha → ficha → voltar, logo do bucket
+>   público, link Cadastros/Depoimentos, "Novo depoimento" remonta, estranho vê lista vazia) e
+>   `e2e/lista-filtros.spec.js` (abas × filtros, autorização só no Forms, link original,
+>   percentual × TRI, ano exato e faixa, Limpar filtros). Apoio em `e2e/ajuda/lista.js`.
+> - **"Voltar" da Ficha**: `Ficha.vue` não mudou, e o único "Voltar" dela é o do estado de erro
+>   (`#/ficha/999999`), que agora leva à lista (testado). A ficha normal não tem "Voltar": volta-se
+>   à lista **com os filtros** pelo Voltar do navegador (histórico; testado) ou, sem filtros, pelo
+>   link "Depoimentos" do cabeçalho. Um botão "Voltar à lista" na ficha fica para o dono decidir.
+> - **"Limpar filtros" mantém a aba**: monta `{ ...estadoVazio(), aba }` (`limparFiltros`,
+>   `src/lib/painel.js`) — a aba não é controle do painel. Decisão de produto registrada no
+>   checklist do marco.
+> - **Estado local espelhando a URL** em `Lista.vue`: o `hashchange` é assíncrono, e duas
+>   mudanças seguidas (marcar um tipo e logo trocar "Tem print?") partiam do mesmo estado velho
+>   — o e2e pegou a segunda apagando a primeira. `mudar()` atualiza o espelho na hora e grava o
+>   hash; o `watch` da consulta ressincroniza (voltar/avançar, link colado).
+> - **Arquivos a mais** (limite de ~200 linhas, lógica pura em `src/lib`): `src/lib/lista.js`
+>   (abas, colunas por aba, `linhaDaLista`, contagem), `src/lib/painel.js` (edição do estado,
+>   presets de percentual, TRI, sim/não, limpar), `src/componentes/FiltroCadastros.vue`
+>   (autocompletar múltiplo de instituição/prova/curso, sem "criar") e
+>   `src/componentes/CondicoesNotas.vue` (percentual e TRI em controles separados). `rotas.js`
+>   ganhou `rotaDaLista(consulta)`. `COLUNAS_LISTA` mora em `src/dados/depoimentos.js`.
+> - **Colunas por aba** (`colunasDaAba`): Todos = fonte, autor, resumo, tipos, logos, status,
+>   data; Google destaca autor, texto, link original, data; Forms destaca nome, autorização
+>   (em negrito), @ do Instagram, depoimento; Manual destaca resumo e autor. Tipos, logos e
+>   status aparecem em toda aba (Step 6). Instituição aprovada sem logo aparece pelo nome.
+> - **e2e existentes**: `./` agora abre a lista, então `abrirCadastros` (`e2e/ajuda/
+>   instituicoes.js`) e `e2e/acesso.spec.js` vão a `#/cadastros` (recarregando quando já estão
+>   nesse hash, porque ir ao mesmo hash não recarrega a página).
 
 **Files:**
 - Create: `src/telas/Lista.vue`, `src/componentes/PainelFiltros.vue`, `src/componentes/LinhaDepoimento.vue`, `src/componentes/AbasFonte.vue`
