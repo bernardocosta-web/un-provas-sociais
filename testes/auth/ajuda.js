@@ -115,6 +115,10 @@ export async function obterSessaoPorMagicLink(chaveServico, email) {
   return {
     accessToken: fragmento.get('access_token'),
     refreshToken: fragmento.get('refresh_token'),
+    // Os e2e montam a sessão completa que o supabase-js guarda no navegador.
+    expiresAt: Number(fragmento.get('expires_at')),
+    expiresIn: Number(fragmento.get('expires_in')),
+    tokenType: fragmento.get('token_type'),
   }
 }
 

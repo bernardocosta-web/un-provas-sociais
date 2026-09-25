@@ -18,3 +18,7 @@ logos/
 *.jpg
 *.jpeg
 *.webp
+
+# Saídas do Playwright (e2e)
+test-results/
+playwright-report/
