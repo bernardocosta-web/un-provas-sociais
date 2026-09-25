@@ -53,8 +53,20 @@ export async function carregarDepoimento(id) {
   }
 }
 
-export async function buscarDepoimentos(filtros) {
-  const { data, error } = await supabase.rpc('buscar_depoimentos', { p_filtros: filtros })
+// Colunas da lista (Task 21): o depoimento, os tipos e, por participacao ->
+// resultado, a instituicao (com logo) — a linha mostra as logos das
+// aprovadas. O PostgREST aceita embedding sobre a RPC porque ela devolve
+// setof public.depoimento; tudo numa chamada so, sem segunda consulta.
+export const COLUNAS_LISTA = `id, texto_completo, resumo_curto, autor_bruto, autor_contato_bruto,
+  fonte, link_original, data_depoimento, autorizacao_publicacao, status_uso,
+  depoimento_tipo(tipo),
+  participacao(resultado(situacao, instituicao(id, nome_canonico, logo_path)))`
+
+// select opcional: sem ele, so a RPC (setof depoimento, colunas cruas).
+export async function buscarDepoimentos(filtros, { select } = {}) {
+  let chamada = supabase.rpc('buscar_depoimentos', { p_filtros: filtros })
+  if (select) chamada = chamada.select(select)
+  const { data, error } = await chamada
   if (error) throw error
   return data
 }

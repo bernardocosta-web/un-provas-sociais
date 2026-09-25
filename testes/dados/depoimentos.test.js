@@ -15,11 +15,19 @@ for (const metodo of ['select', 'eq', 'order']) {
 }
 consulta.maybeSingle = vi.fn(async () => resposta)
 
-const supabaseFalso = { from: vi.fn(() => consulta) }
+// buscarDepoimentos: rpc(...) devolve um builder "thenable" com select().
+let respostaRpc
+const chamadaRpc = {
+  select: vi.fn(() => chamadaRpc),
+  then: (ok, falha) => Promise.resolve(respostaRpc).then(ok, falha),
+}
+
+const supabaseFalso = { from: vi.fn(() => consulta), rpc: vi.fn(() => chamadaRpc) }
 
 vi.mock('../../src/dados/cliente.js', () => ({ supabase: supabaseFalso }))
 
-const { carregarDepoimento } = await import('../../src/dados/depoimentos.js')
+const { carregarDepoimento, buscarDepoimentos, COLUNAS_LISTA } =
+  await import('../../src/dados/depoimentos.js')
 
 const LINHA = {
   id: 7, texto_completo: 'Passei', resumo_curto: null, autor_bruto: null,
@@ -92,5 +100,32 @@ describe('carregarDepoimento', () => {
     const erro = { code: '42501', message: 'permission denied' }
     resposta = { data: null, error: erro }
     await expect(carregarDepoimento(7)).rejects.toBe(erro)
+  })
+})
+
+describe('buscarDepoimentos (Task 21: embedding opcional sobre a RPC)', () => {
+  it('sem select: so a RPC com p_filtros, como antes', async () => {
+    respostaRpc = { data: [{ id: 1 }], error: null }
+    expect(await buscarDepoimentos({ ano: 2025 })).toEqual([{ id: 1 }])
+    expect(supabaseFalso.rpc).toHaveBeenCalledWith('buscar_depoimentos', { p_filtros: { ano: 2025 } })
+    expect(chamadaRpc.select).not.toHaveBeenCalled()
+  })
+
+  it('com select: embute as relacoes na mesma chamada', async () => {
+    respostaRpc = { data: [], error: null }
+    await buscarDepoimentos({}, { select: COLUNAS_LISTA })
+    expect(chamadaRpc.select).toHaveBeenCalledWith(COLUNAS_LISTA)
+  })
+
+  it('COLUNAS_LISTA traz tipos e as logos das instituicoes via resultado', () => {
+    const colunas = COLUNAS_LISTA.replace(/\s+/g, '')
+    expect(colunas).toContain('depoimento_tipo(tipo)')
+    expect(colunas).toContain('resultado(situacao,instituicao(id,nome_canonico,logo_path))')
+  })
+
+  it('erro da API sobe como veio', async () => {
+    const erro = { code: '42501', message: 'permission denied' }
+    respostaRpc = { data: null, error: erro }
+    await expect(buscarDepoimentos({}, { select: COLUNAS_LISTA })).rejects.toBe(erro)
   })
 })
