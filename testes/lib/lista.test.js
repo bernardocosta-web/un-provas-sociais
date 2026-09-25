@@ -156,3 +156,20 @@ describe('linhaDaLista: link so para http(s)', () => {
     expect(linhaDaLista({ ...base, link_original: null }).href).toBe('')
   })
 })
+
+// Revisao do Marco 5: o PostgREST corta a resposta em max_rows (1000). A
+// contagem vem do total exato do banco; quando passa do que veio, a tela
+// diz que mostra so parte, em vez de mentir com linhas.length.
+describe('textoContagem com total exato (corte do max_rows)', () => {
+  it('total igual ao carregado: contagem normal', () => {
+    expect(textoContagem(3, 3)).toBe('3 depoimentos')
+    expect(textoContagem(1, 1)).toBe('1 depoimento')
+  })
+  it('total maior que o carregado: avisa e pede para refinar', () => {
+    expect(textoContagem(1000, 1001)).toBe('Mostrando 1000 de 1001 — refine os filtros')
+  })
+  it('total ausente (null/undefined) cai na contagem do que veio', () => {
+    expect(textoContagem(5, null)).toBe('5 depoimentos')
+    expect(textoContagem(5)).toBe('5 depoimentos')
+  })
+})

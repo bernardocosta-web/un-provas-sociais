@@ -71,6 +71,18 @@ export async function buscarDepoimentos(filtros, { select } = {}) {
   return data
 }
 
+// Revisao do Marco 5: o PostgREST corta a resposta em max_rows (1000, local e
+// hospedado). count: 'exact' pede o total verdadeiro na mesma chamada
+// (Prefer: count=exact; volta no Content-Range), para a lista dizer
+// "Mostrando N de TOTAL" em vez de contar so o que veio.
+export async function buscarDepoimentosComTotal(filtros, { select } = {}) {
+  let chamada = supabase.rpc('buscar_depoimentos', { p_filtros: filtros }, { count: 'exact' })
+  if (select) chamada = chamada.select(select)
+  const { data, count, error } = await chamada
+  if (error) throw error
+  return { dados: data, total: count }
+}
+
 // upsert: false — mesmo motivo do enviarLogo (Task 17): sem politica de
 // UPDATE no bucket, upsert: true cairia no caminho negado quando o nome ja
 // existisse. nomeArquivo precisa ser unico por envio; a remocao do print

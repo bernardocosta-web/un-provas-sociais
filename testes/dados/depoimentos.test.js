@@ -26,7 +26,7 @@ const supabaseFalso = { from: vi.fn(() => consulta), rpc: vi.fn(() => chamadaRpc
 
 vi.mock('../../src/dados/cliente.js', () => ({ supabase: supabaseFalso }))
 
-const { carregarDepoimento, buscarDepoimentos, COLUNAS_LISTA } =
+const { carregarDepoimento, buscarDepoimentos, buscarDepoimentosComTotal, COLUNAS_LISTA } =
   await import('../../src/dados/depoimentos.js')
 
 const LINHA = {
@@ -127,5 +127,22 @@ describe('buscarDepoimentos (Task 21: embedding opcional sobre a RPC)', () => {
     const erro = { code: '42501', message: 'permission denied' }
     respostaRpc = { data: null, error: erro }
     await expect(buscarDepoimentos({}, { select: COLUNAS_LISTA })).rejects.toBe(erro)
+  })
+})
+
+describe('buscarDepoimentosComTotal (revisao do Marco 5: corte de max_rows)', () => {
+  it('pede a contagem exata na mesma chamada e devolve linhas + total', async () => {
+    respostaRpc = { data: [{ id: 1 }, { id: 2 }], count: 1001, error: null }
+    const resultado = await buscarDepoimentosComTotal({ ano: 2025 }, { select: COLUNAS_LISTA })
+    expect(supabaseFalso.rpc).toHaveBeenCalledWith(
+      'buscar_depoimentos', { p_filtros: { ano: 2025 } }, { count: 'exact' })
+    expect(chamadaRpc.select).toHaveBeenCalledWith(COLUNAS_LISTA)
+    expect(resultado).toEqual({ dados: [{ id: 1 }, { id: 2 }], total: 1001 })
+  })
+
+  it('erro da API sobe como veio', async () => {
+    const erro = { code: '42501', message: 'permission denied' }
+    respostaRpc = { data: null, count: null, error: erro }
+    await expect(buscarDepoimentosComTotal({})).rejects.toBe(erro)
   })
 })

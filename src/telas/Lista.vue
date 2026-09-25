@@ -9,7 +9,7 @@ import { montarFiltros, filtrosParaUrl, urlParaFiltros } from '../lib/filtros.js
 import { colunasDaAba, linhaDaLista, textoContagem } from '../lib/lista.js'
 import { rotaDaLista } from '../lib/rotas.js'
 import { mensagemDeErro } from '../lib/erros.js'
-import { buscarDepoimentos, COLUNAS_LISTA } from '../dados/depoimentos.js'
+import { buscarDepoimentosComTotal, COLUNAS_LISTA } from '../dados/depoimentos.js'
 import { listarInstituicoes, listarProvas, listarSimples } from '../dados/referencia.js'
 import AbasFonte from '../componentes/AbasFonte.vue'
 import PainelFiltros from '../componentes/PainelFiltros.vue'
@@ -24,6 +24,8 @@ const props = defineProps({ consulta: { type: String, default: '' } })
 const estado = ref(urlParaFiltros(props.consulta))
 const colunas = computed(() => colunasDaAba(estado.value.aba))
 const linhas = ref([])
+// Total exato do banco (pode passar das linhas que vieram: max_rows).
+const total = ref(null)
 const carregando = ref(true)
 const erro = ref('')
 // Erro ao carregar as opcoes (materias, instituicoes...) fica a parte: uma
@@ -45,11 +47,16 @@ async function buscar() {
   carregando.value = true
   erro.value = ''
   try {
-    const dados = await buscarDepoimentos(montarFiltros(estado.value), { select: COLUNAS_LISTA })
-    if (minha === ultima) linhas.value = dados.map(linhaDaLista)
+    const resposta = await buscarDepoimentosComTotal(
+      montarFiltros(estado.value), { select: COLUNAS_LISTA })
+    if (minha === ultima) {
+      linhas.value = resposta.dados.map(linhaDaLista)
+      total.value = resposta.total
+    }
   } catch (e) {
     if (minha === ultima) {
       linhas.value = []
+      total.value = null
       erro.value = mensagemDeErro(e)
     }
   } finally {
@@ -86,7 +93,7 @@ onMounted(() => {
       <PainelFiltros :estado="estado" :opcoes="opcoes" @mudar="mudar" />
       <div class="resultados">
         <p class="contagem" role="status">
-          {{ carregando ? 'Buscando…' : textoContagem(linhas.length) }}
+          {{ carregando ? 'Buscando…' : textoContagem(linhas.length, total) }}
         </p>
         <p v-if="erroOpcoes" role="alert">{{ erroOpcoes }}</p>
         <p v-if="erro" role="alert">{{ erro }}</p>

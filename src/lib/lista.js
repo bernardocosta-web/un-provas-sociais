@@ -59,8 +59,14 @@ export function dataBr(data) {
   return achado ? `${achado[3]}/${achado[2]}/${achado[1]}` : ''
 }
 
-export function textoContagem(n) {
-  return `${n} ${n === 1 ? 'depoimento' : 'depoimentos'}`
+// total: contagem exata do banco (count: 'exact'). O PostgREST corta a
+// resposta em max_rows (1000); acima disso, linhas.length mentiria.
+// Paginacao de verdade fica para quando o subprojeto #2 trouxer volume.
+export function textoContagem(carregadas, total = null) {
+  if (total != null && total > carregadas) {
+    return `Mostrando ${carregadas} de ${total} — refine os filtros`
+  }
+  return `${carregadas} ${carregadas === 1 ? 'depoimento' : 'depoimentos'}`
 }
 
 // So as aprovadas, sem repetir (a mesma instituicao pode aparecer em mais

@@ -7,6 +7,7 @@ import { test, expect } from './ajuda/teste.js'
 import { nome } from './ajuda/marcador.js'
 import { criarInstituicao, criarProva, criarMateria } from './ajuda/cadastros.js'
 import { limparDados } from './ajuda/limpeza.js'
+import { consultar } from './ajuda/banco.js'
 import {
   criarDepoimento, darLogo, contagem, linhas, abrirLista, escolherCadastro, adicionarPercentual,
 } from './ajuda/lista.js'
@@ -119,4 +120,25 @@ test('estranho ve a lista vazia, sem erro', async ({ page, entrarComo }) => {
   await expect(contagem(page)).toHaveText('0 depoimentos')
   await expect(linhas(page)).toHaveCount(0)
   await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
+test('acima do max_rows (1000) a contagem e a exata do banco, com aviso para refinar', async ({ page, entrarComo }) => {
+  // 1001 depoimentos num insert so (rapido); o PostgREST devolve no maximo
+  // 1000 linhas, mas o total vem do count exato da mesma chamada.
+  const recorte = nome('Volume')
+  await consultar(
+    `insert into depoimento (texto_completo, fonte)
+     select $1 || ' ' || n, 'MANUAL' from generate_series(1, 1001) n`, [recorte])
+  try {
+    await entrarComo('membro')
+    await abrirLista(page, `#/depoimentos?q=${encodeURIComponent(recorte)}`)
+    await expect(contagem(page)).toHaveText('Mostrando 1000 de 1001 — refine os filtros')
+    await expect(linhas(page)).toHaveCount(1000)
+
+    await consultar('delete from depoimento where texto_completo = $1', [`${recorte} 1001`])
+    await page.reload()
+    await expect(contagem(page)).toHaveText('1000 depoimentos')
+  } finally {
+    await consultar('delete from depoimento where texto_completo like $1', [`${recorte}%`])
+  }
 })
