@@ -55,5 +55,9 @@ describe('regra apelido x nome sob escrita concorrente', () => {
       await limpar()
     }
     expect(observado).toEqual(Array(RODADAS).fill(1))
-  })
+    // Timeout explicito e generoso: 20 rodadas com duas conexoes e um DELETE
+    // de limpeza cada uma passam longe do default de 5s do vitest, e mais
+    // ainda contra um banco recem-subido (stack fria no CI, sem cache/warmup
+    // do Postgres) em vez do banco local já quente.
+  }, 30000)
 })
