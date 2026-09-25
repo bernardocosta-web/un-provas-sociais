@@ -4761,9 +4761,67 @@ git commit -m "docs: registra ensaio de restauracao e teste do alarme"
 >   já tinha timeout explícito (15s); os demais testes de `testes/rls` não
 >   fazem laço multi-rodada com duas conexões e não precisaram de ajuste.
 
+> **Fix round 1 (2026-09-25, revisão pós-implementação da Task 25 — review
+> APPROVED, itens de endurecimento).**
+>
+> - **`migracoes.yml`:** `supabase db push` ganhou um passo `--dry-run` antes
+>   do push de verdade (grava no log o que vai ser aplicado, sem aplicar) e o
+>   push real passou a usar `--yes` (não há terminal interativo no runner
+>   para confirmar). `SUPABASE_DB_PASSWORD` também entrou no `env` do passo
+>   `supabase link` (não só no `db push`) — o link também pode precisar
+>   validar a conexão com o banco. O `--project-ref` deixou de ser
+>   interpolado direto em `run:` (`${{ secrets.SUPABASE_PROJECT_REF }}` colado
+>   no texto do comando) e passou a vir de uma variável de ambiente
+>   (`SUPABASE_PROJECT_REF` no `env:`, lida como `"$SUPABASE_PROJECT_REF"` no
+>   shell) — evita que um valor com caractere especial quebre o comando
+>   montado pelo Actions.
+> - **`testes.yml`:** `timeout-minutes: 30` no job (sem isso, um job travado
+>   consome minutos indefinidamente). `npx supabase start` passou a excluir
+>   `studio,imgproxy,edge-runtime` (`-x`) — nenhuma suite (`testes/`, `e2e/`,
+>   `src/`) usa a UI do Studio, transformação de imagem (desligada em
+>   `config.toml`) ou Edge Functions (não há nada em `supabase/functions`),
+>   conferido por grep antes de excluir. Só acelera o start.
+> - **`deploy.yml`:** ganhou `concurrency: { group: pages, cancel-in-progress: false }`
+>   (publicações não se sobrepõem, mas uma em andamento não é cancelada por
+>   outra). Gatilho trocado de `push: branches: [main]` para
+>   `workflow_run: { workflows: [Testes], types: [completed], branches: [main] }`
+>   — publicar reagindo à conclusão de "Testes", não ao push em si, porque
+>   `push` sozinho não checa resultado nenhum: um push com testes quebrados
+>   publicaria o build quebrado do mesmo jeito. `workflow_dispatch` continua
+>   disponível. O job ganhou `if: github.event_name == 'workflow_dispatch' ||
+>   github.event.workflow_run.conclusion == 'success'` e o `checkout` passou
+>   a usar `ref: ${{ github.event.workflow_run.head_sha || github.sha }}` —
+>   publica o SHA que "Testes" de fato testou, não o HEAD atual de `main`
+>   (que pode já ter avançado entre a conclusão de "Testes" e a execução de
+>   "Publicar").
+> - **`testes/repo/workflows.test.js`:** cinco testes novos cobrindo o
+>   endurecimento acima (gatilho `workflow_run` + `if` de conclusão +
+>   `checkout.ref` + `concurrency` em `deploy.yml`; exatamente os três
+>   Secrets esperados e nunca `db reset`/`--local` em `migracoes.yml`) — 15
+>   testes ao todo (eram 10). Comentário novo no topo do arquivo registrando
+>   um limite conhecido do actionlint: ele não tem schema das actions de
+>   terceiro, então um nome de input errado num `with:` (ex.: `projetc-ref`)
+>   não é pego nem por ele nem por este teste.
+> - **`docs/checklists/marco-6.md`:** reordenado — tudo que a primeira
+>   publicação precisa (nome do repo, Site URL/Redirect URLs do Supabase,
+>   Pages → Source, os Secrets `VITE_*` e os três de `migracoes.yml`) passou
+>   para **antes** do push; o item "conferir a branch padrão do GitHub" foi
+>   removido e substituído pelo fato: o repositório do GitHub foi criado
+>   **vazio** na Task 2 (sem branch nenhuma), então `git push -u origin
+>   master:main` cria a branch `main` lá e, sendo a única, o GitHub a define
+>   como padrão sozinho — nada para conferir antes. Depois do push, o item de
+>   acompanhar a aba Actions passou a explicar que "Publicar" só roda se
+>   "Testes" passar (antes rodavam em paralelo, disparados pelo mesmo push).
+>   A seção antiga "Antes do próximo deploy de rotina" foi incorporada à
+>   seção da primeira publicação (mesmos itens, sem duplicar). Total
+>   recalculado de `~40 min` para `~37 min` (soma das estimativas de cada
+>   item após remover o item de conferir branch e reduzir de 8 para 5 min o
+>   item dos três Secrets de `migracoes.yml`, que na prática é só colar três
+>   valores já resolvidos, não descobri-los).
+
 **Files:**
 - Create: `.github/workflows/testes.yml`, `.github/workflows/deploy.yml`, `.github/workflows/migracoes.yml`, `testes/repo/workflows.test.js`
-- Modify: `docs/runbook-equipe.md`, `package.json` (devDependencies `yaml`, `actionlint`), `testes/rls/apelido_vs_nome_corrida.test.js` (timeout)
+- Modify: `docs/runbook-equipe.md`, `package.json` (devDependencies `yaml`, `actionlint`), `testes/rls/apelido_vs_nome_corrida.test.js` (timeout), `docs/checklists/marco-6.md` (fix round 1)
 
 **Interfaces:**
 - Consumes: Secrets da Task 13
