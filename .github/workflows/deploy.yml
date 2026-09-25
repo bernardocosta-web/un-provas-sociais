@@ -4,10 +4,24 @@ name: Publicar
 # `master`; ate o dono ligar o remoto e decidir a branch padrao do GitHub
 # (ver docs/checklists/marco-6.md), este workflow so dispara mesmo por
 # workflow_dispatch.
+#
+# Publicar so depois de Testes passar (fix round 1): em vez de reagir a
+# push direto em `main`, este workflow reage a conclusao do workflow
+# "Testes" (workflow_run). Sem isso, um push com testes quebrados ainda
+# publicaria o build quebrado — o gatilho por push nao checa resultado
+# nenhum, so que o evento aconteceu. workflow_dispatch continua disponivel
+# para publicar manualmente (ex.: reexecutar uma publicacao sem mudar
+# codigo).
 on:
-  push:
+  workflow_run:
+    workflows: [Testes]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -17,11 +31,21 @@ permissions:
 jobs:
   publicar:
     runs-on: ubuntu-latest
+    # Roda se foi disparo manual OU se o workflow_run que disparou terminou
+    # com sucesso. Um workflow_run com conclusion != 'success' (Testes
+    # falhou ou foi cancelado) nao publica nada.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # No gatilho workflow_run, o SHA testado e o do workflow "Testes"
+          # que concluiu — nunca o HEAD atual de `main`, que pode ja ter
+          # avancado. Em workflow_dispatch (sem workflow_run), cai no SHA
+          # do proprio evento.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

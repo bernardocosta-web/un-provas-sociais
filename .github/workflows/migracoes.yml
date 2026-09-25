@@ -14,10 +14,27 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      - run: npx supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+      # Ref pelo env em vez de interpolar o Secret direto em `run:` (fix
+      # round 1): interpolacao direta cola o valor no shell script gerado
+      # antes de rodar, e um valor com aspas/caracteres especiais pode
+      # quebrar o comando; por env + "$VAR" o shell trata como string comum.
+      - run: npx supabase link --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          # supabase link tambem pode precisar validar a conexao com o
+          # banco (pooler/direto) — mesma senha do push abaixo.
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      # Dry-run primeiro: grava no log exatamente quais migracoes seriam
+      # aplicadas, antes do push de verdade — nao substitui o push, so
+      # documenta o que vai acontecer (revisavel no log da execucao).
+      - run: npx supabase db push --dry-run
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      - run: npx supabase db push
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      # --yes: nao espera confirmacao interativa (nao existe terminal no
+      # runner) — o dry-run acima ja documentou o que vai ser aplicado.
+      - run: npx supabase db push --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}

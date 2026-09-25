@@ -9,10 +9,15 @@ import { createLinter } from 'actionlint'
 // YAML e confere os invariantes da Task 25 (job unico e sem matriz em
 // testes.yml — a limpeza dos e2e apaga todo dado E2E-% da stack, e duas
 // execucoes no mesmo banco se atropelariam —, nenhum Secret em testes.yml,
-// deploy.yml so com as duas chaves publicaveis, migracoes.yml so manual).
-// actionlint roda 100% local via wasm (pacote `actionlint`, sem CLI nem
-// download em tempo de execucao) e pega erros que o parser de YAML puro nao
-// pega (sintaxe de expressao `${{ }}`, contextos invalidos etc.).
+// deploy.yml so publica depois de "Testes" passar e so com as duas chaves
+// publicaveis, migracoes.yml so manual e com exatamente os tres Secrets
+// esperados). actionlint roda 100% local via wasm (pacote `actionlint`, sem
+// CLI nem download em tempo de execucao) e pega erros que o parser de YAML
+// puro nao pega (sintaxe de expressao `${{ }}`, contextos invalidos etc.) —
+// mas nao pega tudo: um nome de input errado num `with:` de uma action de
+// terceiro (ex.: `projetc-ref` por engano) nao tem schema local para
+// conferir, e passa batido tanto no actionlint quanto neste teste (fix
+// round 1).
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const raizWorkflows = path.resolve(__dirname, '..', '..', '.github', 'workflows')
@@ -100,6 +105,32 @@ describe('workflows do GitHub Actions (Task 25)', () => {
       expect(texto).not.toMatch(/DB_PASSWORD/)
     })
 
+    it('so publica depois que "Testes" passa (ou por disparo manual)', () => {
+      expect(doc.on.workflow_run?.workflows, 'deveria reagir ao workflow "Testes"').toEqual(['Testes'])
+      expect(doc.on.workflow_run?.types).toEqual(['completed'])
+      expect(doc.on).toHaveProperty('workflow_dispatch')
+      // push direto em branches nao gate-ia por resultado nenhum: so que o
+      // evento aconteceu. Sem essa chave, um push com testes quebrados
+      // publicaria o build quebrado.
+      expect(doc.on).not.toHaveProperty('push')
+
+      const job = Object.values(doc.jobs)[0]
+      expect(job.if, 'job deveria ter um `if` checando o resultado do workflow_run').toMatch(
+        /workflow_run\.conclusion/,
+      )
+      expect(job.if).toMatch(/workflow_dispatch/)
+    })
+
+    it('faz checkout do SHA testado pelo workflow_run, nao do HEAD atual', () => {
+      const job = Object.values(doc.jobs)[0]
+      const checkout = job.steps.find((passo) => passo.uses?.startsWith('actions/checkout@'))
+      expect(checkout?.with?.ref).toMatch(/workflow_run\.head_sha/)
+    })
+
+    it('tem concurrency de publicacao (grupo unico, sem cancelar em andamento)', () => {
+      expect(doc.concurrency).toEqual({ group: 'pages', 'cancel-in-progress': false })
+    })
+
     it('passa no actionlint', () => {
       expect(lint(texto, 'deploy.yml')).toEqual([])
     })
@@ -115,6 +146,18 @@ describe('workflows do GitHub Actions (Task 25)', () => {
     it('so dispara manualmente (workflow_dispatch), nunca em push/pull_request', () => {
       const gatilhos = Object.keys(doc.on)
       expect(gatilhos).toEqual(['workflow_dispatch'])
+    })
+
+    it('usa exatamente os tres Secrets esperados, nenhum a mais', () => {
+      const todosSecrets = [...texto.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1])
+      expect(new Set(todosSecrets)).toEqual(
+        new Set(['SUPABASE_PROJECT_REF', 'SUPABASE_ACCESS_TOKEN', 'SUPABASE_DB_PASSWORD']),
+      )
+    })
+
+    it('nunca reseta nem aponta para o banco local (produção de verdade, sem atalho)', () => {
+      expect(texto).not.toMatch(/db reset/)
+      expect(texto).not.toMatch(/--local\b/)
     })
 
     it('passa no actionlint', () => {
