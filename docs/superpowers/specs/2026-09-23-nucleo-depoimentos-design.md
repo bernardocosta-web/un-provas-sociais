@@ -195,6 +195,12 @@ O estado não registra quem produziu: o bloqueio é do depoimento, não da pesso
 
 A tabela abaixo é exaustiva. Toda transição fora dela é recusada.
 
+> **Nota (2026-09-24) — decisão do dono.** Um depoimento **novo** pode nascer em qualquer status:
+> cadastrar depoimentos já postados é o caso mais comum no começo. As regras de integridade (por
+> exemplo, `POSTADO` exige `data_postagem`; `DESCARTADO` exige motivo) valem já na criação. A
+> tabela de transições vale só na **edição** — o trigger é `BEFORE UPDATE`, compara o status anterior
+> com o novo e não roda no `INSERT`.
+
 | De | Para | Quando |
 |---|---|---|
 | `DISPONIVEL` | `EM_PRODUCAO` | Alguém pegou o depoimento para fazer a arte |
