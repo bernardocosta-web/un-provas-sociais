@@ -5,6 +5,11 @@
 // qualquer requisição a *.supabase.co.
 import { defineConfig, devices } from '@playwright/test'
 import { ambienteLocal, PORTA_VITE, URL_APP } from './e2e/ajuda/ambiente.js'
+import { carregarChavesLocais } from './testes/auth/ajuda.js'
+
+// Uma chamada da CLI no processo principal; os workers (que reavaliam este
+// arquivo) herdam as chaves pelo ambiente e nao chamam a CLI de novo.
+carregarChavesLocais()
 
 const { url, chave } = ambienteLocal()
 process.env.VITE_SUPABASE_URL = url

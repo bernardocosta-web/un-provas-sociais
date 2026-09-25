@@ -7,5 +7,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['testes/**/*.test.js'],
+    // Chaves da stack local lidas uma vez (nao uma por worker).
+    globalSetup: ['testes/setup-global.js'],
   },
 })

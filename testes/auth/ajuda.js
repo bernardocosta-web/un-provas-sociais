@@ -35,28 +35,48 @@ function linhaDoStatus(saida, nomes) {
   return null
 }
 
-function obterChave(nomesEnv) {
-  for (const nome of nomesEnv) {
-    if (process.env[nome]) return process.env[nome].trim()
-  }
-  const valor = linhaDoStatus(saidaStatusSupabase(), nomesEnv)
+// As chaves da stack local sao lidas da CLI UMA vez por execucao e passadas
+// aos processos filhos pelo ambiente: o globalSetup do vitest
+// (testes/setup-global.js) e o playwright.config.js chamam
+// carregarChavesLocais() no processo principal, e os workers herdam as duas
+// variaveis abaixo sem nunca rodar a CLI. Varias `npx supabase status`
+// simultaneas (uma por worker) disputavam o arquivo de telemetria da CLI no
+// Windows (EPERM ao renomear ~/.supabase/telemetry.json.tmp). As chaves
+// ficam so na memoria dos processos, nunca em disco.
+export const ENV_CHAVE_ANON = 'SUPABASE_LOCAL_ANON_KEY'
+export const ENV_CHAVE_SERVICO = 'SUPABASE_LOCAL_SERVICE_KEY'
+const NOMES_NO_STATUS = {
+  [ENV_CHAVE_ANON]: ['ANON_KEY', 'PUBLISHABLE_KEY'],
+  [ENV_CHAVE_SERVICO]: ['SERVICE_ROLE_KEY', 'SECRET_KEY'],
+}
+
+function obterChave(nomeEnv) {
+  if (process.env[nomeEnv]) return process.env[nomeEnv].trim()
+  const nomes = NOMES_NO_STATUS[nomeEnv]
+  const valor = linhaDoStatus(saidaStatusSupabase(), nomes)
   if (!valor) {
     throw new Error(
-      `Não foi possível obter nenhuma de [${nomesEnv.join(', ')}] de "npx supabase status -o env". ` +
+      `Não foi possível obter nenhuma de [${nomes.join(', ')}] de "npx supabase status -o env". ` +
         'A stack local está de pé (npx supabase start)?'
     )
   }
   return valor
 }
 
+// Le as duas chaves (no maximo uma chamada da CLI) e as poe no ambiente
+// deste processo, para os filhos herdarem.
+export function carregarChavesLocais() {
+  for (const nome of [ENV_CHAVE_ANON, ENV_CHAVE_SERVICO]) process.env[nome] = obterChave(nome)
+}
+
 // apikey pública — a mesma usada pelo navegador, pode aparecer em qualquer
 // requisição de teste. Nunca escrita no repositório.
-export const obterApiKey = () => obterChave(['ANON_KEY', 'PUBLISHABLE_KEY'])
+export const obterApiKey = () => obterChave(ENV_CHAVE_ANON)
 
 // service_role — só usada aqui para montar/desmontar fixtures via Admin API
 // (criar/apagar usuário de teste, gerar magic link). Nunca escrita no
 // repositório, nunca usada para simular uma requisição de usuário comum.
-export const obterChaveServico = () => obterChave(['SERVICE_ROLE_KEY', 'SECRET_KEY'])
+export const obterChaveServico = () => obterChave(ENV_CHAVE_SERVICO)
 
 export async function chamarAuth(caminho, corpo, apikey, opcoes = {}) {
   const resposta = await fetch(`${URL_BASE_AUTH}${caminho}`, {
