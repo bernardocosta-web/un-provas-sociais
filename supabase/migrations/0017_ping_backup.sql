@@ -1,0 +1,12 @@
+-- Ping anti-pausa do backup diario (.github/workflows/backup.yml, via
+-- scripts/backup/supabase.js): o job le curso pela API REST com a chave de
+-- servico, porque o criterio de inatividade do Supabase nao diz se conta
+-- conexao de banco ou requisicao de API, e o job bate nas duas portas.
+--
+-- Desde a 0011_privilegios.sql, service_role nao tem privilegio nenhum em
+-- public (paridade com o hospedado). Sem este grant o PostgREST responderia
+-- "permission denied", o backup falharia antes do ping de sucesso e o dead
+-- man's switch dispararia todo dia. curso foi escolhida por nao ter dado
+-- pessoal. So SELECT, so nesta tabela: testes/rls/privilegios.test.js
+-- reprova qualquer privilegio a mais para service_role.
+grant select on public.curso to service_role;

@@ -79,19 +79,25 @@ describe('privilegios de authenticated nas tabelas', () => {
   })
 })
 
-describe('papeis sem privilegio em public', () => {
+describe('privilegios de anon e service_role em public', () => {
   it('a varredura enxerga tabelas, sequencias e funcoes', async () => {
     const rows = await consultar(`select distinct tipo from (${ACL_DE_PUBLIC}) x`)
     expect(rows.map((r) => r.tipo).sort()).toEqual(['S', 'funcao', 'r'])
   })
 
-  it.each(['anon', 'service_role'])('%s nao tem privilegio em tabela, sequencia ou funcao', async (papel) => {
+  // service_role: exatamente SELECT em curso (0017_ping_backup.sql), para o
+  // ping anti-pausa do backup.yml pela API REST — tabela sem dado pessoal.
+  // Nada mais em tabela, sequencia ou funcao; anon continua sem nada.
+  it.each([
+    ['anon', []],
+    ['service_role', ['curso: SELECT']],
+  ])('%s tem em tabela, sequencia ou funcao exatamente o esperado', async (papel, esperado) => {
     const rows = await consultar(`
       select objeto, privilegio from (${ACL_DE_PUBLIC}) x
       where grantee = $1::regrole
       order by 1, 2
     `, [papel])
-    expect(rows.map((r) => `${r.objeto}: ${r.privilegio}`)).toEqual([])
+    expect(rows.map((r) => `${r.objeto}: ${r.privilegio}`)).toEqual(esperado)
   })
 
   it('authenticated nao tem privilegio em sequencia (identidade dispensa)', async () => {
