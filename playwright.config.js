@@ -15,6 +15,9 @@ process.env.E2E_MARCADOR ??= `E2E-${Date.now()}`
 export default defineConfig({
   testDir: 'e2e',
   testMatch: '**/*.spec.js',
+  // Capturas de tela do checklist (e2e/capturas.spec.js) so com
+  // E2E_CAPTURAS=1 (npm run test:e2e:capturas); fora da suite normal.
+  testIgnore: process.env.E2E_CAPTURAS === '1' ? [] : ['**/capturas.spec.js'],
   // Os fluxos mexem no mesmo banco.
   workers: 1,
   fullyParallel: false,

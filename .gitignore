@@ -18,6 +18,8 @@ logos/
 *.jpg
 *.jpeg
 *.webp
+# Exceção: capturas de tela do checklist manual (só dados inventados de e2e)
+!docs/checklists/marco-*-telas/*.png
 
 # Saídas do Playwright (e2e)
 test-results/
