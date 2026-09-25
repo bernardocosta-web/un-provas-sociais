@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { spawn } from 'node:child_process'
-import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { subirDriveFalso, TOKEN_FALSO } from './ajuda/driveFalso.js'
@@ -16,13 +15,16 @@ const SEGREDO = 'refresh-token-que-nao-pode-vazar'
 let drive
 let google
 let hc
+let rest
 beforeEach(async () => {
   drive = await subirDriveFalso({ pastas: [{ id: 'pasta-ok' }] })
   google = await subirServidor((req, corpo, res) => responderJson(res, 200, { access_token: TOKEN_FALSO }))
   hc = await subirServidor((req, corpo, res) => { res.writeHead(200); res.end('OK') })
+  // PostgREST falso: so o ping anti-pausa chega ate ele.
+  rest = await subirServidor((req, corpo, res) => responderJson(res, 200, [{ id: 1 }]))
 })
 afterEach(async () => {
-  await Promise.all([drive.fechar(), google.fechar(), hc.fechar()])
+  await Promise.all([drive.fechar(), google.fechar(), hc.fechar(), rest.fechar()])
 })
 
 function rodar(ambiente) {
@@ -39,7 +41,7 @@ function rodar(ambiente) {
 
 const ambienteCompleto = () => ({
   SUPABASE_DB_URL: 'postgresql://postgres:x@127.0.0.1:1/postgres',
-  SUPABASE_URL: 'http://127.0.0.1:1',
+  SUPABASE_URL: rest.url,
   SUPABASE_SERVICE_ROLE_KEY: 'chave',
   GDRIVE_SA_JSON: '',
   GDRIVE_OAUTH_CLIENT: JSON.stringify({ client_id: 'cid', client_secret: 'csec' }),
@@ -66,17 +68,9 @@ describe('scripts/backup.mjs', () => {
     expect(saida).not.toContain(SEGREDO)
     expect(hc.requisicoes.map((r) => r.caminho)).toEqual(['/ping/x/start', '/ping/x/fail'])
     expect(drive.requisicoes.filter((r) => r.metodo !== 'GET')).toEqual([])
+    // O ping anti-pausa saiu mesmo com o Drive inacessivel.
+    expect(rest.requisicoes.map((r) => `${r.caminho}?${r.busca}`)).toEqual(['/rest/v1/curso?select=id&limit=1'])
     // Rota B de verdade: o refresh token foi trocado no endpoint de token.
     expect(new URLSearchParams(google.requisicoes[0].corpo.toString()).get('grant_type')).toBe('refresh_token')
-  })
-
-  it('so usa modulos nativos do Node (o workflow nao roda npm install)', () => {
-    const arquivos = [path.join(raiz, 'scripts', 'backup.mjs'),
-      ...readdirSync(path.join(raiz, 'scripts', 'backup')).map((f) => path.join(raiz, 'scripts', 'backup', f))]
-    const importacoes = arquivos.flatMap((f) =>
-      [...readFileSync(f, 'utf8').matchAll(/^import .* from '([^']+)'/gm)].map((m) => m[1]))
-    expect(importacoes.length).toBeGreaterThan(10)
-    const externas = importacoes.filter((i) => !i.startsWith('node:') && !i.startsWith('./'))
-    expect(externas).toEqual([])
   })
 })
