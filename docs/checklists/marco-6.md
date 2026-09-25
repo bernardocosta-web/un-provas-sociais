@@ -1,9 +1,11 @@
-# Marco 6 — checklist manual (total: ~55 min)
+# Marco 6 — checklist manual (total: ~74 min)
 
 Só o que não dá para automatizar (`CLAUDE.md`, seção 5). O Marco 6 acrescenta
 os itens dele (backup, anti-pausa, publicação): a Task 22 (destino do backup e
 Healthchecks, ~18 min) não depende do deploy e pode ser feita a qualquer
-momento; os demais (~37 min) dependem do deploy (Task 25) e vieram do Marco 5.
+momento; a primeira execução real do backup (Task 23, ~19 min) depende da
+Task 22 e do push; os demais (~37 min) dependem do deploy (Task 25) e vieram
+do Marco 5.
 
 ## Task 22 — destino do backup, Rota B (OAuth) (~18 min)
 
@@ -117,6 +119,41 @@ pelo meio.
 - [ ] (~3 min) Abrir `https://<sua-conta>.github.io/un-provas-sociais/` (URL
   também aparece na aba Actions, na execução do "Publicar") e confirmar que
   a tela de login aparece.
+
+## Task 23 — primeira execução real do backup (~19 min)
+
+Depende da Task 22 (Secrets do backup e Healthchecks) e do push acima
+(`backup.yml` só roda da branch padrão). Tudo o que dá para testar sem
+produção já é coberto por `npm test` (`testes/backup/`, com Drive e
+Healthchecks simulados); aqui é só a primeira vez contra o Google, o
+healthchecks.io e o projeto hospedado de verdade. Se algo ficar vermelho, a
+mensagem de erro diz o que conferir: `docs/runbook-backup.md`, seção 2.
+
+- [ ] (~4 min) Aplicar a migração `0017_ping_backup.sql` no hospedado: aba
+  **Actions** → "Aplicar migracoes em producao" → **Run workflow**. No log do
+  passo `supabase db push --dry-run`, a única migração listada deve ser a
+  `0017_ping_backup.sql`; o job termina verde. Sem ela, o ping anti-pausa do
+  backup falha com "permission denied".
+- [ ] (~5 min) **Actions** → "Backup diario" → **Run workflow**. Esperar
+  verde (~2–3 min; a maior parte é instalar o `pg_dump` 17). No passo
+  "Backup (…)", o log mostra, nesta ordem: "pasta do Drive acessivel (Rota
+  B)", "ping anti-pausa pela API REST: ok", `banco-AAAA-MM-DD.sql.gz: N bytes
+  enviados`, as linhas de `prints` e `logos` e a de `retencao`.
+- [ ] (~3 min) No Google Drive da conta da UN, pasta **"Backups UN Provas
+  Sociais"**: tem `banco-AAAA-MM-DD.sql.gz` de hoje, com tamanho maior que
+  zero, e as subpastas `prints` e `logos` (vazias se a produção ainda não tem
+  prints nem logos — o log diz quantos objetos cada bucket tem).
+- [ ] (~2 min) No healthchecks.io, o check `backup-un-provas-sociais` está
+  **up** (verde), com um evento "start" e um "success" desta execução; o
+  corpo do "success" traz o resumo (nome do dump e quantos arquivos novos).
+- [ ] (~3 min) Só se o passo anterior falhou em "Nao consegui acessar a pasta
+  do backup": ler a mensagem (runbook, "Ler a mensagem do verificador de
+  pasta") — quase sempre é a pasta criada pela interface do Drive em vez do
+  Step 3 do OAuth Playground. Corrigir e rodar de novo.
+- [ ] (~2 min) **No dia seguinte:** em **Actions** → "Backup diario", há uma
+  execução com evento `schedule` (por volta das 03:00 de Brasília), verde, e o
+  check do Healthchecks continua **up**. O ensaio de restauração e o teste do
+  alarme são a Task 24.
 
 ## Depois do deploy, no site publicado (~12 min)
 

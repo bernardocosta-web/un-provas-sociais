@@ -4616,6 +4616,34 @@ Resultado: ____________________
 > Não basta linkar para a Task 22 do plano — o runbook é o documento consultado num
 > incidente, sem tempo para procurar contexto em outro lugar.
 
+> **Emenda de implementação (2026-09-25, execução da Task 23).** O esboço abaixo mudou
+> assim (detalhes e justificativas em `docs/runbook-backup.md`, "Decisões de
+> implementação"):
+>
+> - **Migração `0017_ping_backup.sql`** (`grant select on public.curso to service_role`);
+>   `privilegios.test.js` exige exatamente `curso: SELECT` para `service_role`.
+> - **Sem `googleapis` e sem `npm install`/`npm ci` no workflow:** Drive API por `fetch`,
+>   token da Rota B pelo endpoint de token, da Rota A por JWT assinado com `node:crypto`.
+>   O script só importa módulos nativos (teste reprova import externo), então o job não
+>   instala nada do npm — o registro do npm deixaria de ser ponto de falha do alarme.
+> - **O script faz tudo, na ordem:** `/start` → verificação da pasta do Drive (falha clara
+>   em pt-BR) → ping anti-pausa REST em `curso` → `pg_dump` + envio de
+>   `banco-AAAA-MM-DD.sql.gz` (o esboço não enviava o dump) → espelho incremental de
+>   `prints` e `logos` (estado no próprio Drive, por `appProperties`; nunca apaga) →
+>   retenção 30 diários + 12 mensais só entre dumps marcados pelo backup → ping de sucesso
+>   por último; `/fail` com o motivo em qualquer erro. O workflow só instala o
+>   `postgresql-client-17` (PGDG), confere a versão, roda o script e tem um passo
+>   `if: failure()` que manda `/fail`. Secrets só por `env`.
+> - **Módulos** em `scripts/backup/` (não em `src/lib/`: é código de operação, rodado pelo
+>   Node no CI e nunca empacotado pelo Vite; a lógica pura — retenção e data — fica isolada
+>   em `scripts/backup/retencao.js`). Testes em `testes/backup/`, com Drive, token e
+>   Healthchecks em servidores HTTP locais e integração contra a stack local (dump pelo
+>   `pg_dump` 17 do contêiner, restaurado num banco novo do mesmo cluster).
+> - **Task 24, Step 1:** o dump é do banco inteiro; restaura limpo num **banco novo** do
+>   cluster local (`createdb restauro` + `psql -d restauro`), não sobre o `postgres`
+>   recém-resetado (colidiria com o que as migrações já criaram). Passo a passo no runbook.
+> - **Checklist:** primeira execução real em `docs/checklists/marco-6.md`, seção "Task 23".
+
 **Files:**
 - Create: `.github/workflows/backup.yml`, `scripts/backup.mjs`, `docs/runbook-backup.md`, `supabase/migrations/NNNN_ping_backup.sql` (próximo número livre)
 - Modify: `testes/rls/privilegios.test.js` (expectativa de `service_role`)
@@ -4732,6 +4760,11 @@ git commit -m "feat(ops): backup diario com dead man's switch"
 ### Task 24 — MANUAL (Bernardo): ensaio de restauração e teste do alarme
 
 **Files:** Modify `docs/runbook-backup.md`
+
+> **Nota (2026-09-25, Task 23).** O dump é `banco-AAAA-MM-DD.sql.gz` (gzip) do banco
+> inteiro: restaurar num banco novo do cluster local, não sobre o `postgres` resetado —
+> o Step 1 abaixo foi substituído pelo passo a passo de `docs/runbook-backup.md`,
+> seção 3 ("Ensaio local").
 
 Backup nunca restaurado é ficção, e vigia nunca disparado vale o mesmo. Os dois só existem depois de terem funcionado uma vez.
 
