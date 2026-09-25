@@ -64,7 +64,7 @@ function adicionar(condicao) {
     </div>
 
     <div class="tri">
-      <strong>TRI</strong>
+      <strong>TRI (pontuação do ENEM)</strong>
       <label>
         Matéria (TRI)
         <select v-model="tri.materia">

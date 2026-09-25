@@ -90,6 +90,13 @@ test('"Tem link original?" sim / nao / tanto faz (link so de espacos conta como 
   await expect(page).not.toHaveURL(/link=/)
 })
 
+// M5-A item 2 (pedido do dono): "TRI" sozinho nao dizia nada para quem nao
+// conhece o jargao do ENEM.
+test('rotulo do TRI no painel explica que e a pontuacao do ENEM', async ({ page }) => {
+  await abrirLista(page)
+  await expect(page.locator('.tri strong')).toHaveText('TRI (pontuação do ENEM)')
+})
+
 test('percentual e TRI sao condicoes separadas', async ({ page }) => {
   const recorte = nome('Familias')
   const matematica = nome('Matematica')
