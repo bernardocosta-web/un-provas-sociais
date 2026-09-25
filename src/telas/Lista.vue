@@ -26,6 +26,9 @@ const colunas = computed(() => colunasDaAba(estado.value.aba))
 const linhas = ref([])
 const carregando = ref(true)
 const erro = ref('')
+// Erro ao carregar as opcoes (materias, instituicoes...) fica a parte: uma
+// busca seguinte limpa `erro`, e os seletores continuariam vazios sem aviso.
+const erroOpcoes = ref('')
 const opcoes = ref({ instituicoes: [], provas: [], cursos: [], materias: [] })
 
 function mudar(novo) {
@@ -61,7 +64,7 @@ async function carregarOpcoes() {
     ])
     opcoes.value = { instituicoes, provas, cursos, materias }
   } catch (e) {
-    erro.value = mensagemDeErro(e)
+    erroOpcoes.value = `Não deu para carregar as opções dos filtros: ${mensagemDeErro(e)}`
   }
 }
 
@@ -85,6 +88,7 @@ onMounted(() => {
         <p class="contagem" role="status">
           {{ carregando ? 'Buscando…' : textoContagem(linhas.length) }}
         </p>
+        <p v-if="erroOpcoes" role="alert">{{ erroOpcoes }}</p>
         <p v-if="erro" role="alert">{{ erro }}</p>
         <table v-if="linhas.length">
           <thead>
