@@ -3,7 +3,7 @@
 // emite 'mudar' com um estado NOVO; a Lista grava na URL, e a URL volta
 // como estado. A fonte nao e controle daqui: e a aba (AbasFonte.vue).
 // Texto e anos emitem no `change` (Enter ou sair do campo), nao a cada tecla.
-import { computed } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { TIPOS, STATUS, CANAIS } from '../lib/rotulos.js'
 import { anoValido } from '../lib/normalizarFiltros.js'
 import { comoOpcao } from '../lib/instituicoes.js'
@@ -18,13 +18,6 @@ const props = defineProps({
 })
 const emit = defineEmits(['mudar'])
 
-const provas = computed(() => props.opcoes.provas.map(comoOpcao))
-const cursos = computed(() => props.opcoes.cursos.map(comoOpcao))
-
-function mudar(campo, valor) {
-  emit('mudar', { ...props.estado, [campo]: valor })
-}
-
 const GRUPOS = [
   { campo: 'tipos', rotulo: 'Tipo', opcoes: TIPOS },
   { campo: 'status', rotulo: 'Status', opcoes: STATUS },
@@ -32,13 +25,32 @@ const GRUPOS = [
 ]
 const ANOS = [['ano', 'Ano exato'], ['anoDe', 'De'], ['anoAte', 'Até']]
 const SIM_NAO = [['temPrint', 'Tem print?'], ['temLinkOriginal', 'Tem link original?']]
+
+const provas = computed(() => props.opcoes.provas.map(comoOpcao))
+const cursos = computed(() => props.opcoes.cursos.map(comoOpcao))
+
+// Rascunho dos campos digitados (texto e anos), ressincronizado a cada
+// estado novo vindo da URL: voltar/avancar no historico, ou um valor que a
+// normalizacao descartou (texto so de espacos, ano fora da faixa), deixam o
+// campo igual ao filtro aplicado, nao ao que ficou digitado.
+const rascunho = reactive({})
+function sincronizar(estado) {
+  rascunho.texto = estado.texto
+  for (const [campo] of ANOS) rascunho[campo] = estado[campo] ?? ''
+}
+watch(() => props.estado, sincronizar, { immediate: true })
+
+function mudar(campo, valor) {
+  emit('mudar', { ...props.estado, [campo]: valor })
+}
+
 </script>
 
 <template>
   <aside class="painel" aria-label="Filtros">
     <label>
       Texto
-      <input type="search" :value="estado.texto" @change="mudar('texto', $event.target.value)" />
+      <input v-model="rascunho.texto" type="search" @change="mudar('texto', rascunho.texto)" />
     </label>
 
     <fieldset v-for="g in GRUPOS" :key="g.campo">
@@ -61,8 +73,8 @@ const SIM_NAO = [['temPrint', 'Tem print?'], ['temLinkOriginal', 'Tem link origi
       <legend>Ano da participação</legend>
       <label v-for="[campo, rotulo] in ANOS" :key="campo">
         {{ rotulo }}
-        <input type="number" min="1990" max="2100" :value="estado[campo] ?? ''"
-               @change="mudar(campo, anoValido($event.target.value))" />
+        <input v-model="rascunho[campo]" type="number" min="1990" max="2100"
+               @change="mudar(campo, anoValido(rascunho[campo]))" />
       </label>
     </fieldset>
 

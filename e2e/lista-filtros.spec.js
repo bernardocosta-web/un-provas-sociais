@@ -166,3 +166,39 @@ test('"Limpar filtros" zera o painel e mantem a aba', async ({ page }) => {
   await expect(page.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true')
   await expect(contagem(page)).not.toHaveText('Buscando…')
 })
+
+test('link_original que nao e http(s) aparece como texto, nunca como link', async ({ page }) => {
+  const recorte = nome('Link perigoso')
+  await criarDepoimento({ texto: `${recorte} js`, fonte: 'GOOGLE_REVIEW', link: 'javascript:alert(1)' })
+  await abrirLista(page, '#/depoimentos?aba=GOOGLE_REVIEW')
+  await filtrarTexto(page, recorte)
+  await expect(contagem(page)).toHaveText('1 depoimento')
+  const celula = linhas(page).locator('td[data-coluna="link"]')
+  await expect(celula).toHaveText('javascript:alert(1)')
+  await expect(celula.locator('a')).toHaveCount(0)
+})
+
+test('voltar/avancar no historico mantem o campo Texto igual ao filtro aplicado', async ({ page }) => {
+  const primeiro = nome('Historico um')
+  const segundo = nome('Historico dois')
+  await criarDepoimento({ texto: primeiro })
+  await criarDepoimento({ texto: segundo })
+  await abrirLista(page)
+  const campo = page.getByLabel('Texto', { exact: true })
+  await filtrarTexto(page, primeiro)
+  await expect(contagem(page)).toHaveText('1 depoimento')
+  await filtrarTexto(page, segundo)
+  await expect(linhas(page)).toContainText(segundo)
+
+  await page.goBack()
+  await expect(linhas(page)).toContainText(primeiro)
+  await expect(campo).toHaveValue(primeiro)
+  await page.goForward()
+  await expect(linhas(page)).toContainText(segundo)
+  await expect(campo).toHaveValue(segundo)
+
+  // Texto so de espacos e descartado pela normalizacao: o campo volta ao aplicado.
+  await filtrarTexto(page, '   ')
+  await expect(page).toHaveURL(/#\/depoimentos$/)
+  await expect(campo).toHaveValue('')
+})
