@@ -32,4 +32,13 @@ describe('rotulos da ficha', () => {
       for (const o of rotulos[lista]) expect(o.rotulo.trim()).not.toBe('')
     })
   }
+
+  // Pedido do dono (2026-09-25): "TRI" sozinho na ficha nao dizia a que prova
+  // se referia (o mesmo problema que a Task M5-A ja tinha corrigido no painel
+  // de filtros, com "TRI (pontuação do ENEM)"). O valor gravado no banco
+  // continua 'TRI' — só o rótulo mostrado muda.
+  it('TRI vira "TRI (ENEM)" na ficha, sem trocar o valor gravado', () => {
+    const tri = rotulos.ESCALAS.find((o) => o.valor === 'TRI')
+    expect(tri.rotulo).toBe('TRI (ENEM)')
+  })
 })

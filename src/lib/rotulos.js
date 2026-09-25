@@ -11,8 +11,12 @@ export const CANAIS = opcoes([
 export const FONTES = opcoes([
   ['GOOGLE_REVIEW', 'Avaliação do Google'], ['GOOGLE_FORMS', 'Google Forms'], ['MANUAL', 'Manual'],
 ])
+// TRI ganha "(ENEM)" no rótulo da ficha (pedido do dono, 2026-09-25): sozinho
+// "TRI" não dizia a que prova se referia. O valor gravado continua 'TRI'; o
+// painel de filtros mantém seu próprio texto, mais longo ("TRI (pontuação do
+// ENEM)", ver CondicoesNotas.vue), sem depender desta lista.
 export const ESCALAS = opcoes([
-  ['PERCENTUAL', 'Percentual'], ['PONTOS', 'Pontos'], ['TRI', 'TRI'],
+  ['PERCENTUAL', 'Percentual'], ['PONTOS', 'Pontos'], ['TRI', 'TRI (ENEM)'],
 ])
 export const SITUACOES = opcoes([
   ['APROVADO', 'Aprovado'], ['NAO_APROVADO', 'Não aprovado'],

@@ -42,6 +42,10 @@ test('ficha completa: salvar leva a #/ficha/<id> e recarregar traz tudo de volta
   await enem.getByLabel('Ano').fill('2024')
   await enem.getByRole('button', { name: '+ Nota' }).click()
   await expect(enem.getByLabel('Escala')).toHaveValue('TRI')
+  // Pedido do dono (2026-09-25): "TRI" sozinho na ficha nao dizia a que prova
+  // se referia; o rotulo mostrado passa a ser "TRI (ENEM)" (valor gravado
+  // continua 'TRI', ver testes/lib/rotulos.test.js).
+  await expect(enem.getByLabel('Escala').locator('option[value="TRI"]')).toHaveText('TRI (ENEM)')
   await enem.getByLabel('Escala').selectOption('PONTOS')
   await expect(enem.getByLabel('Máximo')).toBeVisible()
   await enem.getByLabel('Escala').selectOption('PERCENTUAL')
