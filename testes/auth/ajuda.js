@@ -6,7 +6,11 @@ export const URL_BASE_AUTH = `${URL_API}/auth/v1`
 let saidaStatusEmCache = null
 function saidaStatusSupabase() {
   if (!saidaStatusEmCache) {
-    saidaStatusEmCache = execSync('npx supabase status -o env', { encoding: 'utf8' })
+    // stderr descartado: a CLI escreve ali "Stopped services: [...]", que só
+    // poluía a saída de npm test / test:e2e. Falha continua lançando.
+    saidaStatusEmCache = execSync('npx supabase status -o env', {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    })
   }
   return saidaStatusEmCache
 }
