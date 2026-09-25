@@ -69,9 +69,11 @@ um checklist manual único e curto, com tempo estimado por item e total, em
 **Como rodar os e2e (Playwright, Chromium):** pré-requisito
 `npx supabase start`; depois `npm run test:e2e` (ou `npm run test:tudo` para
 vitest + e2e). `npm test` continua sendo só o vitest. Os e2e rodam **só
-contra a stack local**: o `playwright.config.js` lê URL e chave de
-`npx supabase status` e sobe o próprio Vite com elas (o `.env` aponta para
+contra a stack local**: o `playwright.config.js` usa a URL de
+`testes/local.js` e a chave publicável de `npx supabase status`, e sobe o
+próprio Vite com elas (o `.env` aponta para
 produção — nunca use `npm run dev` para testar), e toda requisição a
 `*.supabase.co` reprova o teste. Os dados levam o marcador `E2E-<timestamp>`
 e são apagados ao fim (banco e buckets), inclusive sobras de uma execução
-interrompida.
+interrompida. Se a porta 5174 estiver presa por um Vite órfão (Windows):
+`netstat -ano | findstr :5174` e `taskkill /PID <pid> /F`.
