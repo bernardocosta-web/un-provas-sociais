@@ -58,3 +58,9 @@ onMounted(async () => {
     <Lista v-else-if="rota.tela === 'depoimentos'" :consulta="rota.consulta" />
   </main>
 </template>
+
+<style scoped>
+/* So espacamento: os links do cabecalho saiam colados. */
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+nav { display: flex; gap: 1rem; }
+</style>
