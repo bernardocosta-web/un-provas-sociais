@@ -4741,7 +4741,8 @@ git commit -m "docs: registra ensaio de restauracao e teste do alarme"
 > nova** do registro, e a versão do CI divergiria da fixada no workflow. Com a devDependency,
 > `npx supabase` resolve para `node_modules/.bin` no local e no CI, e uma versão só vale nos
 > dois lugares (subir de versão = um commit no `package.json`). Custo: o `npm ci` baixa o binário
-> da CLI (postinstall), também no job de deploy. **Um único job**, sem matriz (ver a nota da
+> da CLI (ela vem como pacote opcional `@supabase/cli-<plataforma>`; `--ignore-scripts` não evita
+> o download), também no job de deploy. **Um único job**, sem matriz (ver a nota da
 > Task 20b acima: a limpeza dos e2e apaga todo dado `E2E-%` da stack).
 
 ```yaml
