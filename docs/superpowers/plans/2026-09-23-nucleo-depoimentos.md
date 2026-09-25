@@ -4539,9 +4539,8 @@ Resultado: ____________________
 > 1. O ping lê uma tabela **sem dado pessoal**:
 >    `curl -sf "$URL/rest/v1/curso?select=id&limit=1"` (Step 1 abaixo já corrigido).
 > 2. Esta tarefa cria a própria migração, com o **próximo número livre na hora** (hoje seria
->    `0016`, depois de `0013_apelido_vs_nome.sql` (Task 17b), `0014` (Task 17c) e
->    `0015_salvar_depoimento.sql`; conferir em
->    `supabase/migrations/`), contendo só `grant select on public.curso to service_role;` —
+>    `0017`: a `0016_busca_link_original.sql` foi tomada pela Task 21, e a revisão do Marco 5
+>    não criou migração; conferir em `supabase/migrations/`), contendo só `grant select on public.curso to service_role;` —
 >    nome sugerido `NNNN_ping_backup.sql`, com comentário dizendo que o grant existe para o
 >    ping anti-pausa do `backup.yml`.
 > 3. TDD: antes da migração, alterar `testes/rls/privilegios.test.js` para que a expectativa
@@ -4734,11 +4733,24 @@ git commit -m "docs: registra ensaio de restauracao e teste do alarme"
 
 - [ ] **Step 1: `testes.yml`**
 
+> **Emenda (2026-09-25, revisão do Marco 5).** O bloco abaixo já inclui os e2e e a Supabase CLI
+> com **versão fixa**. Escolha: **devDependency `supabase` fixada em `2.117.0`** (a versão local
+> hoje), já adicionada ao `package.json` com `--save-exact`, em vez de `supabase/setup-cli@v1`.
+> Motivo: os helpers dos testes chamam `npx supabase status -o env` (`testes/auth/ajuda.js`) e o
+> `playwright.config.js` também; sem a dependência local, `npx` no runner baixaria a CLI **mais
+> nova** do registro, e a versão do CI divergiria da fixada no workflow. Com a devDependency,
+> `npx supabase` resolve para `node_modules/.bin` no local e no CI, e uma versão só vale nos
+> dois lugares (subir de versão = um commit no `package.json`). Custo: o `npm ci` baixa o binário
+> da CLI (postinstall), também no job de deploy. **Um único job**, sem matriz (ver a nota da
+> Task 20b acima: a limpeza dos e2e apaga todo dado `E2E-%` da stack).
+
 ```yaml
 name: Testes
 
 on: [push, pull_request]
 
+# Um job so, sem matriz nem paralelismo: a limpeza dos e2e apaga todo dado
+# E2E-% da stack, e duas execucoes no mesmo banco se atropelariam.
 jobs:
   testes:
     runs-on: ubuntu-latest
@@ -4748,9 +4760,18 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      # Instala tambem a Supabase CLI fixada (devDependency supabase 2.117.0).
       - run: npm ci
       - run: npx supabase start
+      - name: Cache do Playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install --with-deps chromium
       - run: npm test
+      # Os e2e sobem o proprio Vite com URL/chave da stack local (nunca Secrets).
+      - run: npm run test:e2e
 ```
 
 - [ ] **Step 2: `deploy.yml`**
