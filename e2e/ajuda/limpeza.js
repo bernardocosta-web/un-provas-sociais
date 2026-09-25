@@ -92,7 +92,10 @@ export async function limparTudo() {
   }
 }
 
-// Contagem do que ainda tem o marcador (deve ser tudo zero ao fim).
+// Contagem das linhas e usuários que ainda têm o marcador (tudo zero ao fim).
+// Arquivos não entram aqui: depois de limparTudo os usuários e2e já não
+// existem e a busca por owner_id não acharia nada. A conferência real de
+// arquivos fica em limparTudo, antes de apagar os usuários (lança se sobrar).
 export async function contarSobras() {
   const cliente = await conectar()
   try {
@@ -103,7 +106,6 @@ export async function contarSobras() {
       sobras[tabela] = rows[0].n
     }
     const ids = await idsUsuariosE2e(cliente)
-    sobras.arquivos = (await arquivosE2e(cliente, ids)).length
     sobras.usuarios = ids.length
     const { rows } = await cliente.query(
       'select count(*)::int as n from membro_equipe where email like $1', [EMAILS])

@@ -1,7 +1,7 @@
 // Marco 4 — status, descarte e autorização na ficha.
 import { test, expect } from './ajuda/teste.js'
 import { nome } from './ajuda/marcador.js'
-import { depoimentosComTexto } from './ajuda/banco.js'
+import { consultar, depoimentosComTexto } from './ajuda/banco.js'
 import { limparDados } from './ajuda/limpeza.js'
 import { abrirFichaNova, preencherMinimo, salvarNova, salvarEdicao, errosDaFicha } from './ajuda/ficha.js'
 
@@ -75,5 +75,7 @@ test('ficha nova já Postado: sem data dá o erro da data; com data salva', asyn
   await salvarNova(page)
   const gravado = await statusGravado(texto)
   expect(gravado.status_uso).toBe('POSTADO')
-  expect(gravado.data_postagem).toBeTruthy()
+  const [{ data }] = await consultar(
+    `select data_postagem::text as data from depoimento where id = $1`, [gravado.id])
+  expect(data).toBe('2026-09-20')
 })

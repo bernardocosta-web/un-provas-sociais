@@ -6,6 +6,7 @@ import { arquivoPng } from './ajuda/imagem.js'
 import { consultar, arquivosNoBucket, instituicaoPorNome } from './ajuda/banco.js'
 import { criarInstituicao, criarProva } from './ajuda/cadastros.js'
 import { limparDados } from './ajuda/limpeza.js'
+import { conectar } from '../testes/rls/ajuda.js'
 import {
   linha, abrirCadastros, preencherESalvar, criarPelaTela, esperarLogoCarregada,
 } from './ajuda/instituicoes.js'
@@ -135,6 +136,23 @@ test('mesclar: perdedora some, nome vira apelido, a prova passa à vencedora e a
 // mesclagem é defesa em profundidade para dado antigo; o cenário é forjado
 // no banco com os triggers desligados (session_replication_role = replica)
 // só para conferir a mensagem na tela.
+async function forjarApelido(instituicaoId, apelido) {
+  const cliente = await conectar()
+  try {
+    await cliente.query('begin')
+    await cliente.query('set local session_replication_role = replica')
+    await cliente.query(
+      'insert into instituicao_apelido (instituicao_id, apelido) values ($1, $2)',
+      [instituicaoId, apelido])
+    await cliente.query('commit')
+  } catch (erro) {
+    await cliente.query('rollback').catch(() => {})
+    throw erro
+  } finally {
+    await cliente.end()
+  }
+}
+
 test('mesclar é recusado quando o nome da perdedora é apelido de uma terceira', async ({ page }) => {
   const vencedora = nome('Inst V')
   const perdedora = nome('Inst P')
@@ -142,11 +160,7 @@ test('mesclar é recusado quando o nome da perdedora é apelido de uma terceira'
   await criarInstituicao(vencedora)
   await criarInstituicao(perdedora)
   const idTerceira = await criarInstituicao(terceira)
-  await consultar(`
-    do $$ begin
-      set local session_replication_role = replica;
-      insert into instituicao_apelido (instituicao_id, apelido) values (${idTerceira}, '${perdedora}');
-    end $$`)
+  await forjarApelido(idTerceira, perdedora)
   await abrirCadastros(page)
 
   await linha(page, perdedora).getByRole('button', { name: 'Mesclar' }).click()
