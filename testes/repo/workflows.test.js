@@ -164,4 +164,74 @@ describe('workflows do GitHub Actions (Task 25)', () => {
       expect(lint(texto, 'migracoes.yml')).toEqual([])
     })
   })
+  describe('backup.yml (Task 23)', () => {
+    let texto
+    let doc
+    let passos
+    beforeAll(() => {
+      ;({ texto, doc } = lerWorkflow('backup.yml'))
+      passos = Object.values(doc.jobs)[0].steps
+    })
+    const indiceDoScript = () => passos.findIndex((p) => /node scripts\/backup\.mjs/.test(p.run ?? ''))
+
+    it('dispara agendado (diario) e manualmente, e nada mais', () => {
+      expect(Object.keys(doc.on).sort()).toEqual(['schedule', 'workflow_dispatch'])
+      expect(doc.on.schedule).toEqual([{ cron: '0 6 * * *' }])
+    })
+
+    it('um job, com timeout, Node 22 e permissao so de leitura', () => {
+      expect(Object.keys(doc.jobs)).toHaveLength(1)
+      const job = Object.values(doc.jobs)[0]
+      expect(job['timeout-minutes']).toBeGreaterThan(0)
+      expect(job['timeout-minutes']).toBeLessThanOrEqual(30)
+      expect(doc.permissions).toEqual({ contents: 'read' })
+      const node = passos.find((p) => p.uses?.startsWith('actions/setup-node@'))
+      expect(node?.with?.['node-version']).toBe('22')
+    })
+
+    it('instala o pg_dump 17 pelo PGDG e confere a versao antes do backup', () => {
+      const idxPg = passos.findIndex((p) => /apt\.postgresql\.org\.sh/.test(p.run ?? '') &&
+        /postgresql-client-17/.test(p.run ?? ''))
+      const idxVersao = passos.findIndex((p) => /pg_dump --version/.test(p.run ?? '') && /17/.test(p.run ?? ''))
+      expect(idxPg, 'nenhum passo instala postgresql-client-17 pelo PGDG').toBeGreaterThanOrEqual(0)
+      expect(idxVersao).toBeGreaterThan(idxPg)
+      expect(indiceDoScript()).toBeGreaterThan(idxVersao)
+    })
+
+    it('o script (que manda o ping de sucesso por ultimo) e o ultimo passo que roda no sucesso', () => {
+      const idx = indiceDoScript()
+      expect(idx, 'nenhum passo roda node scripts/backup.mjs').toBeGreaterThanOrEqual(0)
+      // Depois dele, so passos condicionados a falha.
+      const depois = passos.slice(idx + 1)
+      expect(depois.length).toBeGreaterThan(0)
+      for (const p of depois) expect(p.if).toBe('failure()')
+      // Nenhum passo antes dele pinga o Healthchecks com sucesso.
+      for (const p of passos.slice(0, idx)) expect(p.env?.HEALTHCHECKS_PING_URL).toBeUndefined()
+    })
+
+    it('manda /fail ao Healthchecks quando algo falha', () => {
+      const falha = passos.filter((p) => p.if === 'failure()')
+      expect(falha.some((p) => /HEALTHCHECKS_PING_URL\/fail/.test(p.run ?? ''))).toBe(true)
+    })
+
+    it('usa exatamente os Secrets do backup, sempre por env (nunca interpolados em run:)', () => {
+      const todosSecrets = [...texto.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1])
+      expect(new Set(todosSecrets)).toEqual(new Set(['SUPABASE_DB_URL', 'VITE_SUPABASE_URL',
+        'SUPABASE_SERVICE_ROLE_KEY', 'GDRIVE_SA_JSON', 'GDRIVE_OAUTH_CLIENT', 'GDRIVE_REFRESH_TOKEN',
+        'GDRIVE_FOLDER_ID', 'HEALTHCHECKS_PING_URL']))
+      for (const p of passos) expect(p.run ?? '', p.name).not.toMatch(/\$\{\{/)
+      // Enderecos falsos do Google sao so dos testes.
+      expect(texto).not.toMatch(/BACKUP_URL_GOOGLE/)
+    })
+
+    it('nunca reseta nem aponta para o banco local, e nao faz npm install avulso', () => {
+      expect(texto).not.toMatch(/db reset/)
+      expect(texto).not.toMatch(/--local\b/)
+      expect(texto).not.toMatch(/npm install/)
+    })
+
+    it('passa no actionlint', () => {
+      expect(lint(texto, 'backup.yml')).toEqual([])
+    })
+  })
 })

@@ -1,0 +1,74 @@
+name: Backup diario
+
+# Dump do banco + espelho dos buckets prints/logos no Google Drive, com dead
+# man's switch no Healthchecks: o alarme e a AUSENCIA do ping de sucesso, que
+# so o scripts/backup.mjs manda, como ultima acao, depois de tudo dar certo.
+# Runbook: docs/runbook-backup.md.
+on:
+  schedule:
+    # 06:00 UTC = 03:00 em Sao Paulo.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Duas execucoes ao mesmo tempo (agendada + manual) duplicariam uploads.
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # O Postgres do projeto hospedado e 17; o postgresql-client padrao do
+      # Ubuntu e mais antigo e o pg_dump recusaria o servidor ("server version
+      # mismatch"). Cliente 17 pelo repositorio oficial PGDG.
+      - name: Instalar o cliente PostgreSQL 17 (PGDG)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Conferir pg_dump 17
+        run: pg_dump --version | grep -E '\(PostgreSQL\) 17\.'
+
+      # Nenhuma dependencia do npm: o script so usa modulos nativos do Node (testes/
+      # backup/principal.test.js confere). Ordem dentro do script: /start;
+      # verifica a pasta do Drive (falha clara se inacessivel); ping
+      # anti-pausa pela API REST; pg_dump (conexao de banco = a outra porta
+      # do anti-pausa) e envio; espelho dos buckets; retencao; ping de
+      # sucesso por ultimo. Em erro, manda /fail com o motivo.
+      # Secrets so por env (nunca interpolados no `run:`).
+      - name: Backup (Drive, banco, buckets, retencao, Healthchecks)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+          GDRIVE_OAUTH_CLIENT: ${{ secrets.GDRIVE_OAUTH_CLIENT }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          HEALTHCHECKS_PING_URL: ${{ secrets.HEALTHCHECKS_PING_URL }}
+        run: node scripts/backup.mjs
+
+      # Cobre falhas ANTES do script (checkout, Node, apt). Se o script ja
+      # mandou /fail, um segundo e inofensivo. Melhor esforco: o alarme de
+      # verdade continua sendo a falta do ping de sucesso.
+      - name: Avisar falha ao Healthchecks
+        if: failure()
+        env:
+          HEALTHCHECKS_PING_URL: ${{ secrets.HEALTHCHECKS_PING_URL }}
+        run: |
+          curl -fsS -m 10 --retry 3 -X POST "$HEALTHCHECKS_PING_URL/fail" \
+            --data "backup.yml falhou antes ou durante o script (execucao $GITHUB_RUN_ID)" \
+            > /dev/null || true
