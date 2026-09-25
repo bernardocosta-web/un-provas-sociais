@@ -4626,14 +4626,16 @@ Resultado: ____________________
 >   token da Rota B pelo endpoint de token, da Rota A por JWT assinado com `node:crypto`.
 >   O script só importa módulos nativos (teste reprova import externo), então o job não
 >   instala nada do npm — o registro do npm deixaria de ser ponto de falha do alarme.
-> - **O script faz tudo, na ordem:** `/start` → verificação da pasta do Drive (falha clara
->   em pt-BR) → ping anti-pausa REST em `curso` → `pg_dump` + envio de
+> - **O script faz tudo, na ordem** (após o fix round 1): `/start` → ping anti-pausa REST
+>   em `curso` (antes de tudo: Drive quebrado não pode também deixar o projeto pausar) →
+>   verificação da pasta do Drive (falha clara em pt-BR; nada de dump nem upload antes) →
+>   `pg_dump` (senha por `PGPASSWORD`, tempo limite de 10 min) + envio de
 >   `banco-AAAA-MM-DD.sql.gz` (o esboço não enviava o dump) → espelho incremental de
 >   `prints` e `logos` (estado no próprio Drive, por `appProperties`; nunca apaga) →
->   retenção 30 diários + 12 mensais só entre dumps marcados pelo backup → ping de sucesso
->   por último; `/fail` com o motivo em qualquer erro. O workflow só instala o
->   `postgresql-client-17` (PGDG), confere a versão, roda o script e tem um passo
->   `if: failure()` que manda `/fail`. Secrets só por `env`.
+>   retenção 30 diários + 12 mensais só entre dumps marcados pelo backup, **para a
+>   lixeira** do Drive → ping de sucesso por último; `/fail` com o motivo em qualquer erro.
+>   O workflow só instala o `postgresql-client-17` (PGDG), confere a versão, roda o script
+>   e tem um passo `if: failure() || cancelled()` que manda `/fail`. Secrets só por `env`.
 > - **Módulos** em `scripts/backup/` (não em `src/lib/`: é código de operação, rodado pelo
 >   Node no CI e nunca empacotado pelo Vite; a lógica pura — retenção e data — fica isolada
 >   em `scripts/backup/retencao.js`). Testes em `testes/backup/`, com Drive, token e
@@ -4764,7 +4766,22 @@ git commit -m "feat(ops): backup diario com dead man's switch"
 > **Nota (2026-09-25, Task 23).** O dump é `banco-AAAA-MM-DD.sql.gz` (gzip) do banco
 > inteiro: restaurar num banco novo do cluster local, não sobre o `postgres` resetado —
 > o Step 1 abaixo foi substituído pelo passo a passo de `docs/runbook-backup.md`,
-> seção 3 ("Ensaio local").
+> seção 3 ("Ensaio de restauração").
+>
+> **Emenda (2026-09-25, fix round 1 da Task 23).** Steps 1 e 2 viraram um comando:
+> `npm run ensaio:restauracao -- --dump backups/ensaio/banco-AAAA-MM-DD.sql.gz --arquivos backups/ensaio/arquivos`
+> (`scripts/ensaio-restauracao.mjs` + `scripts/ensaio/`). Ele restaura o dump num banco
+> descartável `ensaio_restauro_*` do contêiner local (nunca o `postgres` local, nunca o
+> hospedado), confere contagens por tabela, `membro_equipe` com membro ativo, um depoimento
+> de amostra com participações/notas/resultados, os arquivos baixados de `prints/` e
+> `logos/` contra `storage.objects` e `depoimento.print_path`, classifica os erros da
+> restauração (tolerando os dois conhecidos: Vault e `log_min_messages`), imprime o
+> relatório (**ENSAIO OK** / **ENSAIO REPROVADO**, código de saída 0/1) e apaga o banco
+> (`--manter` deixa para inspeção). Testado de ponta a ponta em `testes/ensaio/`. A
+> comparação com a produção (Step 2) continua manual. Checklist: `docs/checklists/marco-6.md`,
+> seção "Task 24". O procedimento de desastre (projeto novo) também foi reescrito no runbook:
+> dados de `public` via `pg_dump --data-only --schema=public` do banco de ensaio, carga com
+> `session_replication_role = replica`, arquivos de volta pela Storage API.
 
 Backup nunca restaurado é ficção, e vigia nunca disparado vale o mesmo. Os dois só existem depois de terem funcionado uma vez.
 

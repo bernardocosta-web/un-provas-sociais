@@ -1,11 +1,12 @@
-# Marco 6 — checklist manual (total: ~74 min)
+# Marco 6 — checklist manual (total: ~101 min)
 
 Só o que não dá para automatizar (`CLAUDE.md`, seção 5). O Marco 6 acrescenta
 os itens dele (backup, anti-pausa, publicação): a Task 22 (destino do backup e
 Healthchecks, ~18 min) não depende do deploy e pode ser feita a qualquer
 momento; a primeira execução real do backup (Task 23, ~19 min) depende da
-Task 22 e do push; os demais (~37 min) dependem do deploy (Task 25) e vieram
-do Marco 5.
+Task 22 e do push; o ensaio de restauração e o teste do alarme (Task 24,
+~27 min) dependem do primeiro backup real; os demais (~37 min) dependem do
+deploy (Task 25) e vieram do Marco 5.
 
 ## Task 22 — destino do backup, Rota B (OAuth) (~18 min)
 
@@ -136,8 +137,8 @@ mensagem de erro diz o que conferir: `docs/runbook-backup.md`, seção 2.
   backup falha com "permission denied".
 - [ ] (~5 min) **Actions** → "Backup diario" → **Run workflow**. Esperar
   verde (~2–3 min; a maior parte é instalar o `pg_dump` 17). No passo
-  "Backup (…)", o log mostra, nesta ordem: "pasta do Drive acessivel (Rota
-  B)", "ping anti-pausa pela API REST: ok", `banco-AAAA-MM-DD.sql.gz: N bytes
+  "Backup (…)", o log mostra, nesta ordem: "ping anti-pausa pela API REST:
+  ok", "pasta do Drive acessivel (Rota B)", `banco-AAAA-MM-DD.sql.gz: N bytes
   enviados`, as linhas de `prints` e `logos` e a de `retencao`.
 - [ ] (~3 min) No Google Drive da conta da UN, pasta **"Backups UN Provas
   Sociais"**: tem `banco-AAAA-MM-DD.sql.gz` de hoje, com tamanho maior que
@@ -153,7 +154,36 @@ mensagem de erro diz o que conferir: `docs/runbook-backup.md`, seção 2.
 - [ ] (~2 min) **No dia seguinte:** em **Actions** → "Backup diario", há uma
   execução com evento `schedule` (por volta das 03:00 de Brasília), verde, e o
   check do Healthchecks continua **up**. O ensaio de restauração e o teste do
-  alarme são a Task 24.
+  alarme são a Task 24, logo abaixo.
+
+## Task 24 — ensaio de restauração e teste do alarme (~27 min)
+
+Depois do primeiro backup real (Task 23). O ensaio roda na sua máquina, contra
+a stack **local** (`npx supabase start`), num banco descartável — não toca o
+banco local dos testes nem a produção. Passo a passo completo:
+`docs/runbook-backup.md`, seção 3, "Ensaio de restauração".
+
+- [ ] (~5 min) Baixar do Drive (pasta "Backups UN Provas Sociais") o
+  `banco-AAAA-MM-DD.sql.gz` mais recente e as subpastas `prints` e `logos`
+  (cada uma vem como `.zip`).
+- [ ] (~5 min) Colocar o dump em `backups/ensaio/` e extrair os zips em
+  `backups/ensaio/arquivos/prints/` e `backups/ensaio/arquivos/logos/`.
+- [ ] (~3 min) Rodar
+  `npm run ensaio:restauracao -- --dump backups/ensaio/banco-AAAA-MM-DD.sql.gz --arquivos backups/ensaio/arquivos`.
+  Esperado: o relatório termina com **ENSAIO OK** (só os dois erros `[ok]`
+  conhecidos — Vault e `log_min_messages`), membro ativo em `membro_equipe`,
+  depoimento de amostra com participações, e "N de N" objetos do Storage com
+  cópia.
+- [ ] (~5 min) No SQL Editor da produção, a consulta de contagens do runbook
+  (depoimentos, participações, notas, resultados) bate com as linhas do
+  relatório (diferença só do que foi cadastrado depois do dump).
+- [ ] (~4 min) Anotar data, nome do dump e resultado em
+  `docs/runbook-backup.md` ("Data do último ensaio") e pedir o commit ao
+  Claude; apagar `backups/ensaio/` (tem dados reais).
+- [ ] (~5 min) Teste do alarme (plano, Task 24, Step 3): no healthchecks.io,
+  pausar o check `backup-un-provas-sociais` — ou esperar o prazo vencer sem
+  rodar o backup — e confirmar que o e-mail de alerta chega. Religar o check
+  depois e anotar a data no runbook.
 
 ## Depois do deploy, no site publicado (~12 min)
 

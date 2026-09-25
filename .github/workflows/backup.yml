@@ -42,12 +42,14 @@ jobs:
       - name: Conferir pg_dump 17
         run: pg_dump --version | grep -E '\(PostgreSQL\) 17\.'
 
-      # Nenhuma dependencia do npm: o script so usa modulos nativos do Node (testes/
-      # backup/principal.test.js confere). Ordem dentro do script: /start;
-      # verifica a pasta do Drive (falha clara se inacessivel); ping
-      # anti-pausa pela API REST; pg_dump (conexao de banco = a outra porta
-      # do anti-pausa) e envio; espelho dos buckets; retencao; ping de
-      # sucesso por ultimo. Em erro, manda /fail com o motivo.
+      # Nenhuma dependencia do npm: o script so usa modulos nativos do Node
+      # (testes/backup/so_nativos.test.js confere). Ordem dentro do script:
+      # /start; ping anti-pausa pela API REST; verifica a pasta do Drive
+      # (falha clara se inacessivel, antes de qualquer dump ou upload);
+      # pg_dump (conexao de banco = a outra porta do anti-pausa; senha por
+      # PGPASSWORD, tempo limite de 10 min) e envio; espelho dos buckets;
+      # retencao (lixeira do Drive); ping de sucesso por ultimo. Em erro,
+      # manda /fail com o motivo.
       # Secrets so por env (nunca interpolados no `run:`).
       - name: Backup (Drive, banco, buckets, retencao, Healthchecks)
         env:
