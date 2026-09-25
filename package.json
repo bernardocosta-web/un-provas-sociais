@@ -14,6 +14,7 @@
     "test:e2e": "playwright test",
     "test:e2e:capturas": "node -e \"process.env.E2E_CAPTURAS='1';process.env.E2E_MARCADOR='E2E-CAPTURAS';require('node:child_process').execSync('npx playwright test e2e/capturas.spec.js',{stdio:'inherit',env:process.env})\"",
     "test:tudo": "vitest run && playwright test",
+    "ensaio:restauracao": "node scripts/ensaio-restauracao.mjs",
     "db:start": "supabase start",
     "db:reset": "supabase db reset"
   },
