@@ -1,11 +1,23 @@
-# Marco 5 — checklist manual (total: ~15 min)
+# Marco 5 — checklist manual (total: ~16 min)
 
 Só o que não dá para automatizar (`CLAUDE.md`, seção 5). A lista, os filtros,
 as abas, a URL e o critério de pronto já são cobertos por
-`e2e/lista.spec.js` e `e2e/lista-filtros.spec.js`.
+`e2e/lista.spec.js` e `e2e/lista-filtros.spec.js`. A conferência no site
+publicado fica para o Marco 6 (o deploy é a Task 25): `docs/checklists/marco-6.md`.
 
-- [ ] (~3 min) Aplicar a migração `0016_busca_link_original.sql` no projeto hospedado — sem erro; `buscar_depoimentos` continua com `EXECUTE` só para `authenticated`.
-- [ ] (~5 min) No site publicado, depois do deploy: abrir a lista, filtrar "Tem link original? Sim" e uma instituição — a contagem muda e a URL copiada abre com os mesmos filtros.
-- [ ] (~4 min) Aparência da lista: painel à esquerda, colunas de cada aba (Todos, Google, Forms, Manual) e destaque da autorização no Forms estão bons para a equipe? — decisão do dono.
+## Produção: migração 0016 (~8 min)
+
+- [ ] (~2 min) `npx supabase migration list` — do lado remoto, todas até a `0015`; só a `0016_busca_link_original` falta.
+- [ ] (~1 min) `npx supabase db push --dry-run` — lista **só** a `0016_busca_link_original.sql`. Se aparecer outra, parar.
+- [ ] (~2 min) `npx supabase db push` — termina sem erro.
+- [ ] (~3 min) No SQL Editor do painel: `select proacl from pg_proc where proname = 'buscar_depoimentos';` — esperado `{postgres=X/postgres,authenticated=X/postgres}` (nada para `anon` nem `public`).
+
+## Aparência e produto (~8 min)
+
+As telas estão em `docs/checklists/marco-5-telas/` (dados inventados de e2e;
+para refazer: `npx supabase start` e `npm run test:e2e:capturas`).
+
+- [ ] (~4 min) Lista em cada aba — `lista-todos.png`, `lista-google.png`, `lista-forms.png`, `lista-manual.png`: painel à esquerda, colunas de cada aba e o destaque (fundo amarelo; autorização em negrito só no Forms) estão bons para a equipe? — decisão do dono.
+- [ ] (~2 min) Painel com condições — `painel-com-condicoes.png` (Física = 100%, Matemática TRI ≥ 700, instituição ITA): percentual e TRI em controles separados ficaram claros? — decisão do dono.
 - [ ] (~1 min) "Limpar filtros" mantém a aba escolhida (hoje mantém) — é isso que a equipe espera? — decisão do dono.
-- [ ] (~2 min) Da ficha, volta-se à lista com os filtros pelo Voltar do navegador (a ficha só tem "Voltar" no estado de erro). Quer um botão "Voltar à lista" na ficha? — decisão do dono.
+- [ ] (~1 min) Ficha — `ficha.png`: ela só tem "Voltar" no estado de erro; da ficha, volta-se à lista com os filtros pelo Voltar do navegador. Quer um botão "Voltar à lista" na ficha? — decisão do dono.
