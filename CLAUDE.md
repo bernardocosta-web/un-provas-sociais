@@ -55,3 +55,23 @@ back-end próprio. Vite + Vue 3. Vitest. Interface e documentação em pt-BR.
 Brainstorm → plano → TDD → commit pequeno. Decisões de arquitetura viram ADR em
 `docs/decisions/`. Instruções diretas do Bernardo têm precedência sobre skills.
 Arquivos em UTF-8 sem BOM; `testes/repo/sem_bom.test.js` reprova quem tiver.
+
+## 5. Testes manuais e e2e
+
+**Regra do dono (2026-09-24):** só se pede teste manual do que não dá para
+automatizar, em três categorias: (1) o que exige contas ou credenciais do
+Bernardo (Google Cloud, painel do Supabase hospedado, GitHub); (2) o que roda
+em produção (o site publicado, o projeto hospedado); (3) decisões de produto ou
+de aparência. Todo o resto é teste automatizado (vitest ou e2e). Cada marco tem
+um checklist manual único e curto, com tempo estimado por item e total, em
+`docs/checklists/marco-N.md` (convenção em `docs/checklists/README.md`).
+
+**Como rodar os e2e (Playwright, Chromium):** pré-requisito
+`npx supabase start`; depois `npm run test:e2e` (ou `npm run test:tudo` para
+vitest + e2e). `npm test` continua sendo só o vitest. Os e2e rodam **só
+contra a stack local**: o `playwright.config.js` lê URL e chave de
+`npx supabase status` e sobe o próprio Vite com elas (o `.env` aponta para
+produção — nunca use `npm run dev` para testar), e toda requisição a
+`*.supabase.co` reprova o teste. Os dados levam o marcador `E2E-<timestamp>`
+e são apagados ao fim (banco e buckets), inclusive sobras de uma execução
+interrompida.

@@ -4146,6 +4146,46 @@ git commit -m "feat: ficha do depoimento com participacoes, notas, resultados e 
 
 ---
 
+### Task 20b: Testes de ponta a ponta no navegador (Playwright)
+
+> **Tarefa nova (pedido do Bernardo, 2026-09-24, antes do Marco 5)**, brief em
+> `.superpowers/sdd/2026-09-23-nucleo-depoimentos/task-e2e-brief.md`.
+
+**Motivo:** os fluxos das telas dos Marcos 3 e 4 só tinham teste de banco/lógica e eram
+conferidos à mão. Regra nova e permanente do dono: só é manual o que não dá para automatizar
+(contas/credenciais dele, produção, decisões de produto/aparência); todo o resto vira teste
+automatizado. O Step 6 da Task 20 ("Verificar à mão") passa a ser coberto pelo e2e.
+
+**Files:**
+- Create: `playwright.config.js`, `e2e/*.spec.js` (acesso, cadastros-instituicoes,
+  cadastros-simples, ficha, ficha-status, ficha-cadastros), `e2e/global-setup.js`,
+  `e2e/global-teardown.js`, `e2e/ajuda/*.js` (ambiente, marcador, usuarios, teste, limpeza,
+  banco, cadastros, imagem, instituicoes, ficha), `docs/checklists/README.md`
+- Modify: `package.json` (`@playwright/test`, scripts `test:e2e` e `test:tudo`),
+  `.gitignore` (`test-results/`, `playwright-report/`), `testes/auth/ajuda.js`
+  (`obterUrlApi`, sessão com `expires_at`), `CLAUDE.md`
+
+**Desenho:** Chromium só, `workers: 1`. O config lê URL e chave publicável da stack local
+(`npx supabase status -o env`, via `testes/auth/ajuda.js`), recusa qualquer host que não seja
+`127.0.0.1`/`localhost` e as injeta no processo do Vite (`vite --host 127.0.0.1 --port 5174
+--strictPort`, sem reaproveitar servidor já de pé) — variável do ambiente vence o `.env` no Vite.
+A fixture de `e2e/ajuda/teste.js` aborta e reprova toda requisição a `*.supabase.co`. Login sem
+Google: usuários `e2e-...@exemplo.test` criados pela Admin API, sessão por magic link +
+`/verify` injetada no `localStorage` (`sb-127-auth-token`) antes de a app carregar. Dados com
+marcador `E2E-<timestamp>`; `afterAll` de cada spec e `globalTeardown` apagam linhas marcadas e
+arquivos (referenciados pelas linhas ou enviados por usuário e2e) pela Storage API, e o teardown
+afirma zero sobras; o `globalSetup` limpa sobras de execuções interrompidas (`E2E-%`).
+
+**Como rodar:** `npx supabase start` (pré-requisito) e `npm run test:e2e`; `npm run test:tudo`
+roda vitest e e2e. Nunca contra produção, nunca `npm run dev` para isso.
+
+**Verificação:** `npm test` verde; `npm run test:e2e` verde duas vezes seguidas; consulta de
+sobras zerada; `npm run build` OK.
+
+**Commits:** infra, specs por área e docs, separados.
+
+---
+
 # Marco 5 — Lista, filtros e abas
 
 **Entrega ao fim do marco:** o critério de pronto da spec. A equipe encontra, em segundos, quem gabaritou física e passou no ITA.
@@ -4604,6 +4644,11 @@ git commit -m "docs: registra ensaio de restauracao e teste do alarme"
 ---
 
 ### Task 25: Workflows de teste, deploy e migrações
+
+> **Nota (2026-09-24, Task 20b).** O CI deve rodar também os e2e (`npm run test:e2e`) depois do
+> vitest. Exige a stack do Supabase no runner (`supabase start` no job, com Docker) e o Chromium
+> do Playwright (`npx playwright install --with-deps chromium`); os e2e leem URL e chaves da stack
+> local, nunca de Secrets de produção.
 
 > **Emenda pós-aprovação (2026-09-24).** `docs/runbook-equipe.md` já existe —
 > criado fora de ordem para documentar a publicação da tela de consentimento
