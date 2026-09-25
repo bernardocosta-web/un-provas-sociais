@@ -4158,7 +4158,7 @@ automatizado. O Step 6 da Task 20 ("Verificar à mão") passa a ser coberto pelo
 
 **Files:**
 - Create: `playwright.config.js`, `e2e/*.spec.js` (acesso, cadastros-instituicoes,
-  cadastros-simples, ficha, ficha-status, ficha-cadastros), `e2e/global-setup.js`,
+  cadastros-simples, ficha, ficha-print, ficha-status, ficha-cadastros), `e2e/global-setup.js`,
   `e2e/global-teardown.js`, `e2e/ajuda/*.js` (ambiente, marcador, usuarios, teste, limpeza,
   banco, cadastros, imagem, instituicoes, ficha), `docs/checklists/README.md`
 - Modify: `package.json` (`@playwright/test`, scripts `test:e2e` e `test:tudo`),
@@ -4244,7 +4244,11 @@ sobras zerada; `npm run build` OK.
 > `testes/lib/rotas.test.js`), com `interpretarRota(hash) → { tela, id }` e `rotaDaFicha(id)`. Esta
 > tarefa **não cria** um arquivo novo com `lerRota`/`montarRota` como os Steps 1 e 3 originais
 > descreviam — ela **modifica** o arquivo e o teste existentes, mantendo os dois nomes de função e
-> o uso de `rotaDaFicha` no `:key` de `<Ficha>` em `App.vue`. Mudanças de comportamento exigidas:
+> o uso de `rotaDaFicha` no `:key` de `<Ficha>` em `App.vue`. **Correção (2026-09-24):** os
+> `describe`s existentes de `testes/lib/rotas.test.js` **serão reescritos**, não ficam intactos: o
+> retorno de `interpretarRota` ganha `consulta` (todo `toEqual` atual muda) e o fallback passa de
+> `cadastros` a `depoimentos` ("id invalido cai em cadastros" e "qualquer outra coisa cai em
+> cadastros" invertem). Mudanças de comportamento exigidas:
 > - `interpretarRota` passa a devolver também `consulta` e a aceitar `?consulta` depois do caminho,
 >   para `ficha` e para a lista (hoje o regex `PADRAO_FICHA` exige `^#\/ficha...\/?$`: qualquer
 >   coisa depois da barra final — inclusive `?aba=...` — falha o match inteiro, então
@@ -4259,6 +4263,8 @@ sobras zerada; `npm run build` OK.
 >   `<Ficha>` continua `rota.id ?? 'nova'`.
 > - O botão "Voltar" de `Ficha.vue` (`<a href="#/">Voltar</a>`) passa a levar à lista sem precisar
 >   trocar o `href`: como `#/` cai em `'depoimentos'` pelo ponto acima, o destino muda sozinho.
+> - `App.vue` passa a ter ramos explícitos por tela (`ficha`, `cadastros`, `depoimentos`) em vez do
+>   `v-else` que hoje cai em Cadastros.
 > - "Novo depoimento" (`#/ficha`, sem id) clicado estando já em `#/ficha` hoje não reseta a ficha —
 >   o hash não muda, `hashchange` não dispara, e a `key` (`rota.id ?? 'nova'`) também não muda, então
 >   o Vue não remonta `<Ficha>`. Corrigir dando um `key` que também varia dentro do estado "nova"
@@ -4286,7 +4292,7 @@ sobras zerada; `npm run build` OK.
 
 **Files:**
 - Create: `src/telas/Lista.vue`, `src/componentes/PainelFiltros.vue`, `src/componentes/LinhaDepoimento.vue`, `src/componentes/AbasFonte.vue`
-- Modify: `src/App.vue`, `src/telas/Ficha.vue` (remontagem de "Novo depoimento"), `src/lib/rotas.js`, `testes/lib/rotas.test.js` (já existem, criados pela Task 20), `src/dados/depoimentos.js` (`buscarDepoimentos` aceita embedding)
+- Modify: `src/App.vue` (ramos explícitos cadastros/depoimentos e remontagem de "Novo depoimento" pelo `key`; `Ficha.vue` não muda), `src/lib/rotas.js`, `testes/lib/rotas.test.js` (já existem, criados pela Task 20), `src/dados/depoimentos.js` (`buscarDepoimentos` aceita embedding)
 
 **Interfaces:**
 - Consumes: `montarFiltros`, `filtrosParaUrl`, `urlParaFiltros` (Task 12); `buscarDepoimentos` (Task 19); `interpretarRota`, `rotaDaFicha` (Task 20, `src/lib/rotas.js`)
@@ -4296,7 +4302,8 @@ sobras zerada; `npm run build` OK.
 
 O GitHub Pages não reescreve URL para aplicação de página única; com hash o problema não existe.
 `testes/lib/rotas.test.js` já cobre `#/ficha`, `#/ficha/:id` e id inválido — ver a terceira emenda
-acima. Acrescentar (mantendo os `describe`s existentes):
+acima. Reescrever os `describe`s existentes para o novo formato (`consulta` no retorno; fallback
+`depoimentos` em vez de `cadastros`) e acrescentar:
 
 ```js
 import { describe, it, expect } from 'vitest'
@@ -4341,8 +4348,8 @@ describe('rotaDaFicha — sem mudanca', () => {
 - [ ] **Step 2: Rodar e ver falhar**
 
 Run: `npx vitest run testes/lib/rotas.test.js`
-Expected: FAIL (os casos novos acima; os casos já existentes de `#/ficha`/`#/ficha/:id`/id inválido
-continuam passando, intactos).
+Expected: FAIL (os casos novos e os reescritos — o retorno atual não tem `consulta` e o fallback
+ainda é `cadastros`).
 
 - [ ] **Step 3: Estender `src/lib/rotas.js` (arquivo já existe, Task 20)**
 
@@ -4370,8 +4377,9 @@ export function rotaDaFicha(id) {
 }
 ```
 
-`App.vue` e `Ficha.vue` mudam conforme a terceira emenda acima (link "Depoimentos", link
-"Cadastros" apontando para `#/cadastros`, remontagem de "Novo depoimento").
+`App.vue` muda conforme a terceira emenda acima (link "Depoimentos", link "Cadastros" apontando
+para `#/cadastros`, ramos explícitos por tela, remontagem de "Novo depoimento" pelo `key`);
+`Ficha.vue` não muda.
 
 - [ ] **Step 4: `AbasFonte.vue`**
 
@@ -4648,7 +4656,10 @@ git commit -m "docs: registra ensaio de restauracao e teste do alarme"
 > **Nota (2026-09-24, Task 20b).** O CI deve rodar também os e2e (`npm run test:e2e`) depois do
 > vitest. Exige a stack do Supabase no runner (`supabase start` no job, com Docker) e o Chromium
 > do Playwright (`npx playwright install --with-deps chromium`); os e2e leem URL e chaves da stack
-> local, nunca de Secrets de produção.
+> local, nunca de Secrets de produção. A limpeza dos e2e apaga **todos** os dados `E2E-%` e
+> usuários `e2e-%` do banco (inclusive sobras de outras execuções): duas execuções simultâneas no
+> mesmo banco se atropelariam. O CI deve rodar um único job de e2e por banco (sem matriz nem
+> paralelismo sobre a mesma stack).
 
 > **Emenda pós-aprovação (2026-09-24).** `docs/runbook-equipe.md` já existe —
 > criado fora de ordem para documentar a publicação da tela de consentimento
@@ -4833,6 +4844,6 @@ git commit -m "feat(ops): workflows de teste, deploy e migracoes; runbook de equ
 
 Sem lacunas.
 
-**Nomes conferidos entre tarefas:** `eh_membro_equipe` (6→7, 8, 10, 17), `buscar_depoimentos` (11→19, 21), `salvar_depoimento` (19→20), `mesclar_instituicoes` (17), `montarFiltros`/`filtrosParaUrl`/`urlParaFiltros`/`ESTADO_VAZIO` (12→21), `calcularDimensao`/`comprimir` (16→17, 20), `combina`/`ordenarPorRelevancia` (15→17, 20), `validarDepoimento`/`LIMITE_AVISO_RESUMO` (18→19, 20), `lerRota`/`montarRota` (21).
+**Nomes conferidos entre tarefas:** `eh_membro_equipe` (6→7, 8, 10, 17), `buscar_depoimentos` (11→19, 21), `salvar_depoimento` (19→20), `mesclar_instituicoes` (17), `montarFiltros`/`filtrosParaUrl`/`urlParaFiltros`/`ESTADO_VAZIO` (12→21), `calcularDimensao`/`comprimir` (16→17, 20), `combina`/`ordenarPorRelevancia` (15→17, 20), `validarDepoimento`/`LIMITE_AVISO_RESUMO` (18→19, 20), `interpretarRota`/`rotaDaFicha` (20→21).
 
 **Ações manuais** aparecem como tarefas próprias (2, 3, 13, 22, 24), no marco em que se tornam necessárias, com instruções passo a passo.
