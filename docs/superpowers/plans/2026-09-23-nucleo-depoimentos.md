@@ -4723,9 +4723,47 @@ git commit -m "docs: registra ensaio de restauracao e teste do alarme"
 > seções "Adicionar", "Remover" e "Conferir quem tem acesso" — não o cria do
 > zero. Em **Files**, `docs/runbook-equipe.md` sai de `Create` para `Modify`.
 
+> **Emenda de implementação (2026-09-25, execução da Task 25).**
+>
+> - **Node 22 nos três workflows, como planejado** — confirmado, não trocado
+>   por Node 24 (a versão local): `package.json` não fixa `engines`, mas
+>   `node_modules/vitest/package.json` fixa `engines.node` em
+>   `^22.12.0 || ^24.0.0 || >=26.0.0` (política de LTS/par do Vite — Node 23 e
+>   25 ficam de fora de propósito). Node 22 (LTS "Jod") satisfaz essa faixa e
+>   é a escolha mais estável para um runner efêmero: reproduzível a cada
+>   execução, sem depender de qual versão "current" o dev tem instalada
+>   localmente no momento. `@playwright/test` só exige `>=20`, então não
+>   restringe a escolha.
+> - **Gatilho do `deploy.yml` continua em `main`, como planejado** — o
+>   repositório local está em `master` (`git branch` só mostra
+>   `worktree-marco-1-schema-rls` e `master`; sem remote configurado ainda), e
+>   a branch padrão do repositório GitHub criado na Task 2 não foi
+>   verificada por este agente (proibido contatar o GitHub). Consequência:
+>   se o padrão do GitHub for `master`, o `deploy.yml` como está **nunca
+>   dispara por push** até o dono renomear a branch padrão para `main` (ou
+>   pedir para trocar `branches: [main]` por `branches: [master]`) — ele
+>   sempre pode ser disparado manualmente via `workflow_dispatch` enquanto
+>   isso não for decidido. Item novo no checklist do Marco 6 (ver
+>   `docs/checklists/marco-6.md`) para o dono resolver isso antes do Step 6.
+> - **Validação local dos workflows sem GitHub:** adicionado
+>   `testes/repo/workflows.test.js` (vitest) parseando os três YAML com a
+>   devDependency `yaml` e rodando `actionlint` (devDependency `actionlint`,
+>   pacote wasm sem CLI nem download em runtime — 100% local) sobre cada um.
+>   Cobre os invariantes: job único e sem `strategy.matrix` em `testes.yml`,
+>   zero `secrets.` nele, ordem `supabase start` → `playwright install` →
+>   `npm test` → `npm run test:e2e`; `deploy.yml` só com os Secrets
+>   `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` (nunca `SERVICE_ROLE` nem
+>   senha de banco); `migracoes.yml` só `workflow_dispatch`.
+> - **Flake corrigido junto (registrado no `progress.md`, onda Marco 5):**
+>   `testes/rls/apelido_vs_nome_corrida.test.js` (20 rodadas, duas conexões)
+>   ganhou timeout explícito de 30s — o default do vitest (5s) pode estourar
+>   contra um banco recém-subido (stack fria no CI). `remover_instituicao_corrida.test.js`
+>   já tinha timeout explícito (15s); os demais testes de `testes/rls` não
+>   fazem laço multi-rodada com duas conexões e não precisaram de ajuste.
+
 **Files:**
-- Create: `.github/workflows/testes.yml`, `.github/workflows/deploy.yml`, `.github/workflows/migracoes.yml`
-- Modify: `docs/runbook-equipe.md`
+- Create: `.github/workflows/testes.yml`, `.github/workflows/deploy.yml`, `.github/workflows/migracoes.yml`, `testes/repo/workflows.test.js`
+- Modify: `docs/runbook-equipe.md`, `package.json` (devDependencies `yaml`, `actionlint`), `testes/rls/apelido_vs_nome_corrida.test.js` (timeout)
 
 **Interfaces:**
 - Consumes: Secrets da Task 13
