@@ -11,3 +11,13 @@ describe('chaves da stack local chegam aos workers pelo ambiente', () => {
     expect(process.env[nome], `${nome} ausente: o globalSetup nao rodou`).toMatch(/\S{20,}/)
   })
 })
+
+describe('globalSetup com a stack local fora do ar', () => {
+  it('nao derruba a suite: avisa e deixa as variaveis sem valor', async () => {
+    const { prepararChaves } = await import('../setup-global.js')
+    const avisos = []
+    const falhar = () => { throw new Error('A stack local está de pé (npx supabase start)?') }
+    expect(() => prepararChaves(falhar, (m) => avisos.push(m))).not.toThrow()
+    expect(avisos.join(' ')).toMatch(/npx supabase start/)
+  })
+})
