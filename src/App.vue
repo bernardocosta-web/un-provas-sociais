@@ -1,7 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { usuarioAtual, aoMudarSessao, sair, retomarRetornoDoLogin } from './dados/sessao.js'
-import { interpretarRota } from './lib/rotas.js'
+import {
+  usuarioAtual, aoMudarSessao, sair, retomarRetornoDoLogin, guardarUltimaListaAoSair,
+} from './dados/sessao.js'
+import { interpretarRota, rotaDaLista } from './lib/rotas.js'
+import { devePreencherRetorno } from './lib/retorno.js'
 import Login from './telas/Login.vue'
 import Cadastros from './telas/Cadastros.vue'
 import Ficha from './telas/Ficha.vue'
@@ -25,9 +28,11 @@ function novoDepoimento() {
 onMounted(async () => {
   usuario.value = await usuarioAtual()
   // Voltando do login: o link que a pessoa abriu deslogada (hash guardado
-  // antes do OAuth) vale de novo, uma vez so.
+  // antes do OAuth) vale de novo, uma vez so — mas so quando nao ha hash
+  // explicito (revisao do Marco 5: senao um endereco direto, ex. #/ficha/9,
+  // seria sobrescrito pelo retorno guardado de uma visita anterior).
   const retorno = usuario.value ? retomarRetornoDoLogin() : null
-  if (retorno && retorno !== location.hash) {
+  if (retorno && devePreencherRetorno(location.hash)) {
     location.hash = retorno
     rota.value = interpretarRota(retorno)
   }
@@ -35,7 +40,15 @@ onMounted(async () => {
   // Sem onUnmounted cancelando a assinatura nem o listener: App.vue é a raiz
   // e nunca desmonta.
   aoMudarSessao((sessao) => { usuario.value = sessao?.user ?? null })
-  window.addEventListener('hashchange', () => { rota.value = interpretarRota(location.hash) })
+  window.addEventListener('hashchange', () => {
+    // Guarda a lista de onde se sai (M5-A item 3): o "Voltar a lista" da
+    // ficha volta com os mesmos filtros e a mesma aba.
+    const anterior = rota.value
+    rota.value = interpretarRota(location.hash)
+    if (anterior.tela === 'depoimentos' && rota.value.tela === 'ficha') {
+      guardarUltimaListaAoSair(rotaDaLista(anterior.consulta))
+    }
+  })
 })
 </script>
 

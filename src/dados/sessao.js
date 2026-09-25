@@ -1,5 +1,6 @@
 import { supabase } from './cliente.js'
 import { guardarRetorno, retomarRetorno } from '../lib/retorno.js'
+import { guardarUltimaLista, rotaVoltarLista } from '../lib/ultimaLista.js'
 
 // window.sessionStorage pode lancar so de ser lido (site data bloqueado).
 function storageDaSessao() {
@@ -36,4 +37,16 @@ export function aoMudarSessao(callback) {
 // Hash guardado antes do OAuth (uma vez so; depois e apagado), ou null.
 export function retomarRetornoDoLogin() {
   return retomarRetorno(storageDaSessao())
+}
+
+// M5-A item 3: chamado (App.vue) ao sair da lista para a ficha, para o
+// botao "Voltar a lista" devolver aos mesmos filtros e a mesma aba.
+export function guardarUltimaListaAoSair(hash) {
+  guardarUltimaLista(storageDaSessao(), hash)
+}
+
+// Hash para onde "Voltar a lista" navega: a ultima lista visitada, ou
+// "#/depoimentos" sem uma guardada.
+export function rotaDeVoltarLista() {
+  return rotaVoltarLista(storageDaSessao())
 }

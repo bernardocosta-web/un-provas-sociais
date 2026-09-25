@@ -26,3 +26,11 @@ export function retomarRetorno(storage) {
     return null
   }
 }
+
+// Revisao do Marco 5 (item deferido): so restaura o retorno guardado quando
+// nao ha hash explicito (vazio ou "#/"). Sem isso, quem abria a app direto
+// num endereco (ex.: um link de #/ficha/9) tinha esse endereco trocado pelo
+// retorno guardado de uma visita anterior, logo apos o login.
+export function devePreencherRetorno(hashAtual) {
+  return hashAtual === '' || hashAtual === '#/'
+}

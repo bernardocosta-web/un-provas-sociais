@@ -10,6 +10,7 @@ import { limparDados } from './ajuda/limpeza.js'
 import { consultar } from './ajuda/banco.js'
 import {
   criarDepoimento, darLogo, contagem, linhas, abrirLista, escolherCadastro, adicionarPercentual,
+  filtrarTexto,
 } from './ajuda/lista.js'
 
 test.afterAll(limparDados)
@@ -110,6 +111,31 @@ test('"Novo depoimento" estando ja na ficha nova limpa o formulario', async ({ p
   await page.getByRole('link', { name: 'Novo depoimento' }).click()
   await expect(page).toHaveURL(/#\/ficha$/)
   await expect(page.getByLabel('Texto completo')).toHaveValue('')
+})
+
+// M5-A item 3 (pedido do dono): o botao "Voltar a lista" da ficha devolve
+// aos mesmos filtros e a mesma aba de antes, nao a lista em branco.
+test('filtrar + trocar de aba, abrir a ficha e "Voltar à lista" devolve os mesmos filtros e aba', async ({ page, entrarComo }) => {
+  const recorte = nome('Voltar lista')
+  await criarDepoimento({ texto: `${recorte} manual`, fonte: 'MANUAL' })
+  await criarDepoimento({ texto: `${recorte} google`, fonte: 'GOOGLE_REVIEW' })
+
+  await entrarComo('membro')
+  await abrirLista(page)
+  await filtrarTexto(page, recorte)
+  await page.getByRole('tab', { name: 'Manual' }).click()
+  await expect(contagem(page)).toHaveText('1 depoimento')
+  const endereco = page.url()
+
+  await linhas(page).first().click()
+  await expect(page.getByRole('heading', { name: /^Depoimento #/ })).toBeVisible()
+
+  await page.getByRole('link', { name: 'Voltar à lista' }).click()
+  await expect(page).toHaveURL(endereco)
+  await expect(page.getByRole('tab', { name: 'Manual' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByLabel('Texto', { exact: true })).toHaveValue(recorte)
+  await expect(contagem(page)).toHaveText('1 depoimento')
+  await expect(linhas(page)).toContainText(`${recorte} manual`)
 })
 
 test('estranho ve a lista vazia, sem erro', async ({ page, entrarComo }) => {

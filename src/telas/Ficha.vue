@@ -9,6 +9,7 @@ import { gravarFicha } from '../lib/gravacao.js'
 import { mensagemDeErro } from '../lib/erros.js'
 import { novaFicha, comChaves, podeEditar } from '../lib/formulario.js'
 import { rotaDaFicha } from '../lib/rotas.js'
+import { rotaDeVoltarLista } from '../dados/sessao.js'
 import CamposDepoimento from '../componentes/CamposDepoimento.vue'
 import SeletorAluno from '../componentes/SeletorAluno.vue'
 import CampoPrint from '../componentes/CampoPrint.vue'
@@ -25,6 +26,9 @@ const carregando = ref(false)
 const salvando = ref(false)
 const salvo = ref(false)
 const falhouCarga = ref(false)
+// M5-A item 3: mesma rota para o "Voltar" do erro e o "Voltar à lista" do
+// formulário — a última lista visitada (filtros e aba), ou a lista em branco.
+const rotaVoltar = rotaDeVoltarLista()
 
 async function carregar() {
   carregando.value = true
@@ -91,7 +95,7 @@ async function salvar() {
     <div v-else-if="!podeEditar(id, falhouCarga)" role="alert">
       <p v-for="erro in erros" :key="erro">{{ erro }}</p>
       <button type="button" @click="carregar">Tentar de novo</button>
-      <a href="#/">Voltar</a>
+      <a :href="rotaVoltar">Voltar</a>
     </div>
     <form v-else @submit.prevent="salvar">
       <CamposDepoimento :model-value="ficha" />
@@ -104,6 +108,7 @@ async function salvar() {
       </ul>
       <p v-if="salvo" role="status">Salvo.</p>
       <button type="submit" :disabled="salvando">{{ salvando ? 'Salvando…' : 'Salvar' }}</button>
+      <a :href="rotaVoltar">Voltar à lista</a>
     </form>
   </section>
 </template>

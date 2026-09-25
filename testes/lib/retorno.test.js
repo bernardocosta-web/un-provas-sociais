@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { CHAVE_RETORNO, guardarRetorno, retomarRetorno } from '../../src/lib/retorno.js'
+import { CHAVE_RETORNO, guardarRetorno, retomarRetorno, devePreencherRetorno } from '../../src/lib/retorno.js'
 
 // Revisao do Marco 5: o OAuth do Google volta para a base, sem o hash. Um
 // link compartilhado (#/depoimentos?...) aberto deslogado se perdia no
@@ -54,5 +54,20 @@ describe('retomarRetorno', () => {
   it('storage ausente ou que lanca devolve null', () => {
     expect(retomarRetorno(null)).toBeNull()
     expect(retomarRetorno({ getItem: () => { throw new Error('x') } })).toBeNull()
+  })
+})
+
+// Revisao do Marco 5 (item deferido): so restaura sem hash explicito, senao
+// um endereco direto (ex.: #/ficha/9) seria sobrescrito pelo retorno velho.
+describe('devePreencherRetorno', () => {
+  it('hash vazio ou "#/": restaura', () => {
+    expect(devePreencherRetorno('')).toBe(true)
+    expect(devePreencherRetorno('#/')).toBe(true)
+  })
+
+  it('hash explicito (ficha, cadastros, lista com consulta): nao restaura', () => {
+    for (const hash of ['#/ficha/9', '#/ficha', '#/cadastros', '#/depoimentos?ano=2025']) {
+      expect(devePreencherRetorno(hash)).toBe(false)
+    }
   })
 })

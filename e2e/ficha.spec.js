@@ -187,6 +187,15 @@ test('resumo acima de 200 caracteres mostra o aviso e salva assim mesmo', async 
   expect((await depoimentosComTexto(texto))[0].resumo_curto).toBe(resumo)
 })
 
+// M5-A item 3: sem uma lista visitada nesta sessao, o botao vai para a
+// lista em branco (nunca quebra por falta de historico).
+test('"Voltar à lista" sem lista visitada antes vai para a lista em branco', async ({ page }) => {
+  await abrirFichaNova(page)
+  await page.getByRole('link', { name: 'Voltar à lista' }).click()
+  await expect(page).toHaveURL(/#\/depoimentos$/)
+  await expect(page.getByRole('heading', { name: 'Depoimentos' })).toBeVisible()
+})
+
 test('#/ficha/999999 mostra só "Depoimento não encontrado.", Tentar de novo e Voltar', async ({ page }) => {
   await page.goto('#/ficha/999999')
   const alerta = page.getByRole('alert')

@@ -138,3 +138,30 @@ describe('entrarComGoogle guarda o hash para depois do login (revisao do Marco 5
     await expect(entrarComGoogle()).resolves.toBeUndefined()
   })
 })
+
+// M5-A item 3: "Voltar a lista" da ficha usa a ultima lista guardada.
+describe('guardarUltimaListaAoSair / rotaDeVoltarLista', () => {
+  it('guarda a rota de lista e devolve na leitura seguinte', async () => {
+    const { guardarUltimaListaAoSair, rotaDeVoltarLista } = await import('../../src/dados/sessao.js')
+    const dados = {}
+    vi.stubGlobal('window', {
+      location: { origin: 'http://localhost:5173' },
+      sessionStorage: {
+        setItem: (k, v) => { dados[k] = v },
+        getItem: (k) => dados[k] ?? null,
+        removeItem: (k) => { delete dados[k] },
+      },
+    })
+    guardarUltimaListaAoSair('#/depoimentos?aba=MANUAL')
+    expect(rotaDeVoltarLista()).toBe('#/depoimentos?aba=MANUAL')
+  })
+
+  it('sem rota guardada (ou sessionStorage bloqueado) cai em "#/depoimentos"', async () => {
+    const { rotaDeVoltarLista } = await import('../../src/dados/sessao.js')
+    vi.stubGlobal('window', {
+      location: { origin: 'http://localhost:5173' },
+      get sessionStorage() { throw new Error('bloqueado') },
+    })
+    expect(rotaDeVoltarLista()).toBe('#/depoimentos')
+  })
+})
