@@ -10,7 +10,7 @@ publicado fica para o Marco 6 (o deploy é a Task 25): `docs/checklists/marco-6.
 - [ ] (~2 min) `npx supabase migration list` — do lado remoto, todas até a `0015`; só a `0016_busca_link_original` falta.
 - [ ] (~1 min) `npx supabase db push --dry-run` — lista **só** a `0016_busca_link_original.sql`. Se aparecer outra, parar.
 - [ ] (~2 min) `npx supabase db push` — termina sem erro.
-- [ ] (~3 min) No SQL Editor do painel: `select proacl from pg_proc where proname = 'buscar_depoimentos';` — esperado `{postgres=X/postgres,authenticated=X/postgres}` (nada para `anon` nem `public`).
+- [ ] (~3 min) No SQL Editor do painel: `select proacl, prosrc like '%tem_link_original%' as tem_filtro from pg_proc where proname = 'buscar_depoimentos';` — esperado `{postgres=X/postgres,authenticated=X/postgres} | true` (nada para `anon` nem `public`, e a função já é a da 0016).
 
 ## Aparência e produto (~8 min)
 
