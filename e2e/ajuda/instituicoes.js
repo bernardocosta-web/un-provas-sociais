@@ -7,8 +7,12 @@ export const linha = (page, nomeCanonico) =>
     has: page.locator('td:nth-child(2)').getByText(nomeCanonico, { exact: true }),
   })
 
+// Desde a Task 21, './' abre a lista; Cadastros so por #/cadastros. Ir ao
+// mesmo hash em que ja se esta nao recarrega a pagina (navegacao no mesmo
+// documento), e a tela ficaria na aba de antes: nesse caso, recarregar.
 export async function abrirCadastros(page) {
-  await page.goto('./')
+  if (/#\/cadastros$/.test(page.url())) await page.reload()
+  else await page.goto('#/cadastros')
   await expect(page.getByRole('heading', { name: 'Instituições' })).toBeVisible()
   await expect(page.getByText('Carregando…')).toHaveCount(0)
 }

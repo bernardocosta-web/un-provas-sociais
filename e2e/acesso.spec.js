@@ -16,7 +16,7 @@ test('a app fala com o Supabase local (testes/local.js), nunca com o hospedado',
   const destinos = new Set()
   page.on('request', (r) => destinos.add(new URL(r.url()).origin))
   await entrarComo('membro')
-  await page.goto('./')
+  await page.goto('#/cadastros')
   await expect(page.getByRole('heading', { name: 'Instituições' })).toBeVisible()
   expect([...destinos]).toContain(origemLocal)
   expect([...destinos].filter((o) => o.endsWith('.supabase.co'))).toEqual([])
@@ -31,7 +31,7 @@ test('deslogado vê a tela de login', async ({ page }) => {
 
 test('membro logado vê Cadastros e Sair volta ao login', async ({ page, entrarComo }) => {
   const sessao = await entrarComo('membro')
-  await page.goto('./')
+  await page.goto('#/cadastros')
   await expect(page.getByRole('heading', { name: 'Instituições' })).toBeVisible()
   await expect(page.getByText(sessao.user.email)).toBeVisible()
   await page.getByRole('button', { name: 'Sair' }).click()
@@ -41,7 +41,7 @@ test('membro logado vê Cadastros e Sair volta ao login', async ({ page, entrarC
 
 test('estranho vê listas vazias e não consegue criar instituição nem curso', async ({ page, entrarComo }) => {
   await entrarComo('estranho')
-  await page.goto('./')
+  await page.goto('#/cadastros')
   await expect(page.getByRole('heading', { name: 'Instituições' })).toBeVisible()
   await expect(page.getByText('Carregando…')).toHaveCount(0)
   await expect(page.locator('tbody tr')).toHaveCount(0)
