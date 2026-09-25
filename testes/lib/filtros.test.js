@@ -490,3 +490,46 @@ describe('montarFiltros: combinacao ampla de campos', () => {
     expect(urlParaFiltros(filtrosParaUrl(estado))).toEqual(estado)
   })
 })
+
+// --- Task 21 (emenda 2026-09-24): "Tem link original?" ---
+// Mesmo tratamento de temPrint. Decisao do controlador: a URL segue a
+// convencao ja existente de `print` (true/false literal), nao sim/nao —
+// uma convencao so; o texto do plano foi emendado.
+describe('temLinkOriginal: estado, p_filtros e URL', () => {
+  it('estado vazio tem temLinkOriginal null', () => {
+    expect(estadoVazio().temLinkOriginal).toBeNull()
+    expect(ESTADO_VAZIO.temLinkOriginal).toBeNull()
+  })
+
+  it('null nao emite tem_link_original', () => {
+    expect(montarFiltros({ ...ESTADO_VAZIO, temLinkOriginal: null })).toEqual({})
+  })
+
+  it('true e false viram tem_link_original boolean', () => {
+    expect(montarFiltros({ ...ESTADO_VAZIO, temLinkOriginal: true }))
+      .toEqual({ tem_link_original: true })
+    expect(montarFiltros({ ...ESTADO_VAZIO, temLinkOriginal: false }))
+      .toEqual({ tem_link_original: false })
+  })
+
+  it('URL usa a chave link com true/false', () => {
+    expect(filtrosParaUrl({ ...ESTADO_VAZIO, temLinkOriginal: true })).toBe('link=true')
+    expect(filtrosParaUrl({ ...ESTADO_VAZIO, temLinkOriginal: false })).toBe('link=false')
+    expect(filtrosParaUrl({ ...ESTADO_VAZIO, temLinkOriginal: null })).toBe('')
+  })
+
+  it('urlParaFiltros: so "true"/"false" literal; lixo (inclusive sim/nao) vira null', () => {
+    expect(urlParaFiltros('link=true').temLinkOriginal).toBe(true)
+    expect(urlParaFiltros('link=false').temLinkOriginal).toBe(false)
+    expect(urlParaFiltros('link=sim').temLinkOriginal).toBeNull()
+    expect(urlParaFiltros('link=nao').temLinkOriginal).toBeNull()
+    expect(urlParaFiltros('').temLinkOriginal).toBeNull()
+  })
+
+  it('ida e volta preserva temLinkOriginal junto com temPrint', () => {
+    for (const temLinkOriginal of [true, false, null]) {
+      const estado = { ...ESTADO_VAZIO, temPrint: false, temLinkOriginal }
+      expect(urlParaFiltros(filtrosParaUrl(estado))).toEqual(estado)
+    }
+  })
+})

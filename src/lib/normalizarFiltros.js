@@ -120,9 +120,10 @@ export function analisarNotas(valor) {
     .filter(condicaoValida)
 }
 
-// Qualquer valor de "print" diferente de "true"/"false" literal e tratado
-// como ausente — nunca vira false por engano (ex.: print=sim).
-export function temPrintOuNulo(valor) {
+// Qualquer valor de "print" (ou "link", Task 21) diferente de
+// "true"/"false" literal e tratado como ausente — nunca vira false por
+// engano (ex.: print=sim, link=nao).
+export function booleanoOuNulo(valor) {
   if (valor === 'true') return true
   if (valor === 'false') return false
   return null

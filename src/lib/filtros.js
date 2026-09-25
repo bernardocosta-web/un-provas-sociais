@@ -20,7 +20,7 @@
 import {
   idsValidos, anoValido, semNulos, condicaoValida,
   coagirCondicao, validarOperador, textosLimpos, idsLimpos, analisarNotas,
-  temPrintOuNulo,
+  booleanoOuNulo,
 } from './normalizarFiltros.js'
 
 export function estadoVazio() {
@@ -38,6 +38,8 @@ export function estadoVazio() {
     anoAte: null,
     notas: [],
     temPrint: null,
+    // Task 21: so link_original (nao ha filtro para link_post).
+    temLinkOriginal: null,
   }
 }
 
@@ -82,6 +84,7 @@ export function montarFiltros(estado) {
   if (anoAte != null) filtros.ano_ate = anoAte
 
   if (estado.temPrint != null) filtros.tem_print = estado.temPrint
+  if (estado.temLinkOriginal != null) filtros.tem_link_original = estado.temLinkOriginal
 
   for (const [campo, chave] of Object.entries(LISTAS_TEXTO)) {
     const lista = semNulos(estado[campo])
@@ -134,6 +137,8 @@ export function filtrosParaUrl(estado) {
   if (anoAte != null) params.set('ano_ate', String(anoAte))
 
   if (estado.temPrint != null) params.set('print', String(estado.temPrint))
+  // Mesma convencao de print: true/false literal (Task 21, decisao do controlador).
+  if (estado.temLinkOriginal != null) params.set('link', String(estado.temLinkOriginal))
 
   for (const campo of Object.keys(LISTAS_TEXTO)) {
     const lista = semNulos(estado[campo])
@@ -181,7 +186,8 @@ export function urlParaFiltros(texto) {
     ano: anoValido(params.get('ano')),
     anoDe: anoValido(params.get('ano_de')),
     anoAte: anoValido(params.get('ano_ate')),
-    temPrint: temPrintOuNulo(params.get('print')),
+    temPrint: booleanoOuNulo(params.get('print')),
+    temLinkOriginal: booleanoOuNulo(params.get('link')),
     notas: analisarNotas(params.get('notas')),
   }
 }
