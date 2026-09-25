@@ -4326,6 +4326,13 @@ sobras zerada; `npm run build` OK.
 >   data; Google destaca autor, texto, link original, data; Forms destaca nome, autorização
 >   (em negrito), @ do Instagram, depoimento; Manual destaca resumo e autor. Tipos, logos e
 >   status aparecem em toda aba (Step 6). Instituição aprovada sem logo aparece pelo nome.
+> - **Fix round 1 (revisão)**: `link_original` só vira `href` quando casa com `^https?://`
+>   (`linhaDaLista`, campo `href`; outro esquema — ex.: `javascript:` — aparece como texto);
+>   erro de carga das opções em `erroOpcoes`, separado do erro da busca; texto e anos do painel
+>   num rascunho ressincronizado a cada estado vindo da URL (voltar/avançar). Capturas de tela
+>   do checklist por `npm run test:e2e:capturas` (`e2e/capturas.spec.js`, só com
+>   `E2E_CAPTURAS=1`), commitadas em `docs/checklists/marco-5-telas/`; o item "site publicado"
+>   foi para `docs/checklists/marco-6.md` (deploy é a Task 25).
 > - **e2e existentes**: `./` agora abre a lista, então `abrirCadastros` (`e2e/ajuda/
 >   instituicoes.js`) e `e2e/acesso.spec.js` vão a `#/cadastros` (recarregando quando já estão
 >   nesse hash, porque ir ao mesmo hash não recarrega a página).
