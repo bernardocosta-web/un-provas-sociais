@@ -4163,10 +4163,10 @@ automatizado. O Step 6 da Task 20 ("Verificar à mão") passa a ser coberto pelo
   banco, cadastros, imagem, instituicoes, ficha), `docs/checklists/README.md`
 - Modify: `package.json` (`@playwright/test`, scripts `test:e2e` e `test:tudo`),
   `.gitignore` (`test-results/`, `playwright-report/`), `testes/auth/ajuda.js`
-  (`obterUrlApi`, sessão com `expires_at`), `CLAUDE.md`
+  (sessão com `expires_at`), `CLAUDE.md`
 
-**Desenho:** Chromium só, `workers: 1`. O config lê URL e chave publicável da stack local
-(`npx supabase status -o env`, via `testes/auth/ajuda.js`), recusa qualquer host que não seja
+**Desenho:** Chromium só, `workers: 1`. O config usa a URL local de `testes/local.js` e a chave
+publicável de `npx supabase status -o env` (via `testes/auth/ajuda.js`), recusa qualquer host que não seja
 `127.0.0.1`/`localhost` e as injeta no processo do Vite (`vite --host 127.0.0.1 --port 5174
 --strictPort`, sem reaproveitar servidor já de pé) — variável do ambiente vence o `.env` no Vite.
 A fixture de `e2e/ajuda/teste.js` aborta e reprova toda requisição a `*.supabase.co`. Login sem
