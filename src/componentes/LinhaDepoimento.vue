@@ -27,8 +27,10 @@ function abrir() {
         </span>
       </template>
       <template v-else-if="c.chave === 'link'">
-        <a v-if="linha.link" :href="linha.link" target="_blank" rel="noopener noreferrer"
+        <!-- href so para http(s) (linhaDaLista); outro esquema aparece como texto. -->
+        <a v-if="linha.href" :href="linha.href" target="_blank" rel="noopener noreferrer"
            @click.stop>abrir</a>
+        <template v-else>{{ linha.link }}</template>
       </template>
       <strong v-else-if="c.chave === 'autorizacao'">{{ linha.autorizacao }}</strong>
       <template v-else>{{ linha[c.chave] }}</template>

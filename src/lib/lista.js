@@ -45,6 +45,10 @@ export function colunasDaAba(aba) {
 const rotuloDe = (opcoes, valor) => opcoes.find((o) => o.valor === valor)?.rotulo ?? valor ?? ''
 const limpo = (texto) => (texto ?? '').trim()
 
+// So http(s) vira href: um "javascript:" (ou data:) gravado em link_original
+// executaria na origem da app, com a sessao do usuario.
+const PADRAO_LINK_SEGURO = /^https?:\/\//i
+
 export function trecho(texto, limite = 160) {
   const t = limpo(texto)
   return t.length <= limite ? t : `${t.slice(0, limite - 1)}…`
@@ -83,6 +87,7 @@ export function linhaDaLista(d) {
     contato: limpo(d.autor_contato_bruto),
     fonte: rotuloDe(FONTES, d.fonte),
     link: limpo(d.link_original),
+    href: PADRAO_LINK_SEGURO.test(limpo(d.link_original)) ? limpo(d.link_original) : '',
     data: dataBr(d.data_depoimento),
     autorizacao: rotuloDe(AUTORIZACOES, d.autorizacao_publicacao),
     status: rotuloDe(STATUS, d.status_uso),

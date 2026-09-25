@@ -136,3 +136,23 @@ describe('trecho / dataBr / textoContagem', () => {
     expect(textoContagem(42)).toBe('42 depoimentos')
   })
 })
+
+// Fix round 1 (seguranca): link_original vira href; um "javascript:" gravado
+// executaria na origem da app (com a sessao). So http(s) vira link.
+describe('linhaDaLista: link so para http(s)', () => {
+  const base = { id: 1, texto_completo: 'x', fonte: 'GOOGLE_REVIEW', status_uso: 'DISPONIVEL' }
+  it('http e https (qualquer caixa) viram href', () => {
+    expect(linhaDaLista({ ...base, link_original: 'https://exemplo.test/a' }).href).toBe('https://exemplo.test/a')
+    expect(linhaDaLista({ ...base, link_original: ' HTTP://exemplo.test ' }).href).toBe('HTTP://exemplo.test')
+  })
+  it('javascript:, data: e texto solto nao viram href, mas o texto aparece', () => {
+    for (const link of ['javascript:alert(1)', ' JavaScript:alert(1)', 'data:text/html,x', 'exemplo.test/a']) {
+      const linha = linhaDaLista({ ...base, link_original: link })
+      expect(linha.href).toBe('')
+      expect(linha.link).toBe(link.trim())
+    }
+  })
+  it('sem link: href vazio', () => {
+    expect(linhaDaLista({ ...base, link_original: null }).href).toBe('')
+  })
+})
