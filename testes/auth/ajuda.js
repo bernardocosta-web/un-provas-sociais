@@ -3,14 +3,24 @@ import { URL_API } from '../local.js'
 
 export const URL_BASE_AUTH = `${URL_API}/auth/v1`
 
+// stderr capturado, não herdado: no sucesso a CLI escreve ali "Stopped
+// services: [...]", que só poluía a saída de npm test / test:e2e; na falha,
+// ele é o motivo e vai para a mensagem do erro (sem isso sobraria só
+// "Command failed: ...").
+export function executarComando(comando) {
+  try {
+    return execSync(comando, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  } catch (erro) {
+    const motivo = String(erro.stderr ?? '').trim()
+    if (motivo && !erro.message.includes(motivo)) erro.message += `\n${motivo}`
+    throw erro
+  }
+}
+
 let saidaStatusEmCache = null
 function saidaStatusSupabase() {
   if (!saidaStatusEmCache) {
-    // stderr descartado: a CLI escreve ali "Stopped services: [...]", que só
-    // poluía a saída de npm test / test:e2e. Falha continua lançando.
-    saidaStatusEmCache = execSync('npx supabase status -o env', {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
-    })
+    saidaStatusEmCache = executarComando('npx supabase status -o env')
   }
   return saidaStatusEmCache
 }
