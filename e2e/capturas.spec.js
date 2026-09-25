@@ -37,7 +37,7 @@ test('capturas da lista, do painel e da ficha', async ({ page, entrarComo }) => 
 
   const alvo = await criarDepoimento({
     texto: `${m} Gabaritei física no ENEM e passei no ITA. O canal mudou meu jeito de estudar.`,
-    fonte: 'MANUAL', autor: 'Aluna Exemplo', tipos: ['APROVACAO', 'TRANSFORMACAO'],
+    fonte: 'MANUAL', autor: 'Aluna Exemplo', data: '2025-11-20', tipos: ['APROVACAO', 'TRANSFORMACAO'],
     participacoes: [
       { prova: enem, ano: 2025, notas: [{ materia: fisica, valor: 100 }, { materia: matematica, valor: 780, escala: 'TRI' }] },
       { prova: vestibular, ano: 2025, resultados: [{ instituicao: ita }] },
@@ -45,12 +45,12 @@ test('capturas da lista, do painel e da ficha', async ({ page, entrarComo }) => 
   })
   await criarDepoimento({
     texto: `${m} Aulas claras e objetivas, recomendo para quem vai prestar vestibular.`,
-    fonte: 'GOOGLE_REVIEW', autor: 'Avaliador Exemplo', link: 'https://exemplo.test/avaliacao',
+    fonte: 'GOOGLE_REVIEW', autor: 'Avaliador Exemplo', data: '2025-08-03', link: 'https://exemplo.test/avaliacao',
     tipos: ['ELOGIO'],
   })
   await criarDepoimento({
     texto: `${m} Passei na UFMG estudando pelas aulas do canal.`,
-    fonte: 'GOOGLE_FORMS', autor: 'Aluno Formulário', contato: '@aluno.exemplo',
+    fonte: 'GOOGLE_FORMS', autor: 'Aluno Formulário', data: '2025-02-14', contato: '@aluno.exemplo',
     autorizacao: 'AUTORIZADO', tipos: ['APROVACAO'],
     participacoes: [{ prova: enem, ano: 2024, resultados: [{ instituicao: ufmg }] }],
   })
@@ -72,6 +72,7 @@ test('capturas da lista, do painel e da ficha', async ({ page, entrarComo }) => 
   await adicionarTri(page, `${m} Matemática`, 700)
   await escolherCadastro(page, 'Instituição aprovada', `${m} ITA`)
   await expect(contagem(page)).toHaveText('1 depoimento')
+  await expect(page.locator('td[data-coluna="data"]')).toHaveText('20/11/2025')
   await capturar(page, 'painel-com-condicoes.png')
 
   await page.goto(`#/ficha/${alvo}`)

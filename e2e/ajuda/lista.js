@@ -15,13 +15,13 @@ const id = async (sql, parametros) => Number((await consultar(sql, parametros))[
 //                   resultados: [{ instituicao, situacao }] }]
 export async function criarDepoimento({
   texto, fonte = 'MANUAL', link = null, autor = null, contato = null,
-  autorizacao = 'NAO_INFORMADO', tipos = [], participacoes = [],
+  autorizacao = 'NAO_INFORMADO', tipos = [], participacoes = [], data = null,
 }) {
   const depoimento = await id(
     `insert into depoimento (texto_completo, fonte, link_original, autor_bruto,
-       autor_contato_bruto, autorizacao_publicacao)
-     values ($1, $2, $3, $4, $5, $6) returning id`,
-    [texto, fonte, link, autor, contato, autorizacao])
+       autor_contato_bruto, autorizacao_publicacao, data_depoimento)
+     values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+    [texto, fonte, link, autor, contato, autorizacao, data])
   for (const tipo of tipos) {
     await consultar('insert into depoimento_tipo (depoimento_id, tipo) values ($1, $2)', [depoimento, tipo])
   }
