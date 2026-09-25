@@ -1,6 +1,5 @@
 import pg from 'pg'
-
-const URL_BANCO = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+import { URL_BANCO } from '../local.js'
 
 export async function conectar() {
   const cliente = new pg.Client({ connectionString: URL_BANCO })

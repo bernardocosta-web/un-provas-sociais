@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
+import { URL_API } from '../local.js'
 
-export const URL_BASE_AUTH = 'http://127.0.0.1:54321/auth/v1'
+export const URL_BASE_AUTH = `${URL_API}/auth/v1`
 
 let saidaStatusEmCache = null
 function saidaStatusSupabase() {

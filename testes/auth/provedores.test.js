@@ -12,7 +12,7 @@ import {
 
 // Task M1-A: login só pelo Google. Todo outro provedor (e-mail/senha, magic
 // link/OTP, telefone, anônimo) precisa ser recusado pela API de Auth local
-// (Kong em http://127.0.0.1:54321/auth/v1). Este teste bate direto na API,
+// (Kong em URL_BASE_AUTH, testes/local.js). Este teste bate direto na API,
 // não confia só na leitura do supabase/config.toml.
 
 describe('provedores de autenticação — login só pelo Google', () => {

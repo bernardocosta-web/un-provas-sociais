@@ -23,7 +23,16 @@ Estas restrições valem para **todas** as tarefas. Não repetir em cada uma; vi
 - **TDD sem exceção:** teste falhando antes da implementação, sempre.
 - **Commits pequenos**, um por tarefa no mínimo.
 - **Nomes canônicos do schema** (usados por todas as tarefas): `instituicao`, `instituicao_apelido`, `prova`, `curso`, `materia`, `aluno`, `aluno_perfil`, `depoimento`, `depoimento_tipo`, `depoimento_canal`, `participacao`, `nota`, `resultado`, `membro_equipe`.
-- **Banco local de teste:** `postgresql://postgres:postgres@127.0.0.1:54322/postgres` (padrão do `supabase start`).
+- **Banco local de teste:** `postgresql://postgres:postgres@127.0.0.1:44322/postgres`; API local em `http://127.0.0.1:44321`.
+  > **Emenda (2026-09-24):** as portas locais saíram do padrão do `supabase start` (54321/54322/…)
+  > para 443xx em `supabase/config.toml` (api 44321, db 44322, shadow 44320, pooler 44329, studio
+  > 44323, inbucket 44324, analytics 44327). O Windows (winnat/Hyper-V) reservou a faixa TCP
+  > 54245–54344, que contém todas as portas padrão, e o `supabase start` passou a falhar com
+  > "bind: An attempt was made to access a socket in a way forbidden by its access permissions".
+  > O Windows só reserva dentro da faixa dinâmica (49152–65535); abaixo de 49152 não há reserva.
+  > A única fonte das URLs locais nos testes é `testes/local.js`; `testes/repo/portas_locais.test.js`
+  > reprova porta de volta na faixa dinâmica ou divergência com o `config.toml`. Trechos antigos
+  > deste plano que citam 54321/54322 (ex.: Task 4) valem com as portas novas.
 
 ---
 
@@ -4219,7 +4228,7 @@ git commit -m "feat: ficha do depoimento com participacoes, notas, resultados e 
 > `buscar_depoimentos` (0010, Task 11) devolve `setof public.depoimento` — sem os tipos
 > (`depoimento_tipo`) nem as logos das instituições aprovadas (via `participacao.resultado.
 > instituicao`) que a linha da lista (Step 6) exige. Verificado contra a API local
-> (`http://127.0.0.1:54321/rest/v1/rpc/buscar_depoimentos`, com um JWT de membro de equipe assinado
+> (`http://127.0.0.1:44321/rest/v1/rpc/buscar_depoimentos`, com um JWT de membro de equipe assinado
 > com o `JWT_SECRET` local): o PostgREST **aceita** embedding de tabela sobre uma função RPC que
 > devolve `setof` de uma tabela, com a mesma sintaxe do embedding numa tabela normal — a chamada
 > `POST .../rpc/buscar_depoimentos?select=*,depoimento_tipo(tipo),participacao(resultado(situacao,
@@ -4564,7 +4573,7 @@ Backup nunca restaurado é ficção, e vigia nunca disparado vale o mesmo. Os do
 ```bash
 # Baixar o dump mais recente do Drive para ./backups/
 npx supabase db reset
-psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -f backups/banco-AAAA-MM-DD.sql
+psql "postgresql://postgres:postgres@127.0.0.1:44322/postgres" -f backups/banco-AAAA-MM-DD.sql
 ```
 
 - [ ] **Step 2: Conferir os números**
