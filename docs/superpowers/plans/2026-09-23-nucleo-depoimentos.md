@@ -4896,6 +4896,31 @@ git commit -m "feat(ops): workflows de teste, deploy e migracoes; runbook de equ
 
 ---
 
+# Marco 7 — Rodada de design dedicada (registro, sem implementação)
+
+> Decisão do dono, 2026-09-25 (M5-A item 4). Só o registro do objetivo e do momento — nenhuma
+> tarefa de implementação aqui. A spec e as tarefas de aparência (cores, espaçamento, tipografia,
+> hierarquia visual) ficam para quando essa rodada for de fato executada.
+
+- [ ] **Task 26: Rodada de design dedicada da aparência geral**
+
+**Objetivo:** revisar a aparência geral da aplicação — hierarquia visual, espaçamento, tipografia,
+cores — sem mexer em lógica nem em dados. Até aqui a interface seguiu o mínimo necessário para
+cada tarefa (spec §6), nunca uma passada de design de conjunto.
+
+**Momento:** depois do Marco 6 (backup, resiliência e publicação) e antes de a equipe começar a
+usar o sistema no dia a dia — o site publicado (Marco 6) fica funcional, mas "cru", e ganha essa
+passada antes do uso real.
+
+**Ponto de partida:** as capturas de tela do checklist do Marco 5 (`docs/checklists/marco-5-telas/`,
+regeradas a cada mudança relevante de tela por `npm run test:e2e:capturas`) — são o estado real da
+interface, não mockups.
+
+**Files:** nenhum ainda — task de registro; a spec e os arquivos entram quando a rodada de design
+for de fato executada.
+
+---
+
 ## Autorrevisão do plano
 
 **Cobertura da spec**, seção a seção:
