@@ -1,0 +1,42 @@
+name: Publicar
+
+# Gatilho planejado para `main` (Task 25). O repositorio local esta em
+# `master`; ate o dono ligar o remoto e decidir a branch padrao do GitHub
+# (ver docs/checklists/marco-6.md), este workflow so dispara mesmo por
+# workflow_dispatch.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # A anon key nao e segredo — ela aparece no bundle por design.
+      # Injetar pelos Secrets mantem o REPOSITORIO limpo e evita que alguem
+      # confunda as duas chaves e comite a de servico.
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4

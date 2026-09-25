@@ -1,0 +1,31 @@
+name: Testes
+
+on: [push, pull_request]
+
+# Um job so, sem matriz nem paralelismo: a limpeza dos e2e apaga todo dado
+# E2E-% da stack, e duas execucoes no mesmo banco se atropelariam (Task 20b).
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      # Instala tambem a Supabase CLI fixada (devDependency `supabase`
+      # 2.117.0, --save-exact): npx supabase resolve para node_modules/.bin
+      # no local e no CI, entao uma versao so vale nos dois lugares.
+      - run: npm ci
+      - run: npx supabase start
+      - name: Cache do Playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      # Os e2e sobem o proprio Vite com URL/chave da stack local (nunca
+      # Secrets de producao) — playwright.config.js le de `npx supabase
+      # status`.
+      - run: npm run test:e2e
