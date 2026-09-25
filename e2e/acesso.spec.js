@@ -4,7 +4,7 @@ import { test, expect } from './ajuda/teste.js'
 import { nome } from './ajuda/marcador.js'
 import { consultar } from './ajuda/banco.js'
 import { limparDados } from './ajuda/limpeza.js'
-import { ambienteLocal } from './ajuda/ambiente.js'
+import { ambienteLocal, URL_APP } from './ajuda/ambiente.js'
 
 const MENSAGEM_SEM_PERMISSAO = 'Sem permissão: este e-mail não está na lista da equipe.'
 
@@ -29,7 +29,7 @@ test('deslogado vê a tela de login', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Sair' })).toHaveCount(0)
 })
 
-test('membro logado vê Cadastros e Sair volta ao login', async ({ page, entrarComo }) => {
+test('membro logado em #/cadastros vê Cadastros e Sair volta ao login', async ({ page, entrarComo }) => {
   const sessao = await entrarComo('membro')
   await page.goto('#/cadastros')
   await expect(page.getByRole('heading', { name: 'Instituições' })).toBeVisible()
@@ -64,4 +64,36 @@ test('estranho vê listas vazias e não consegue criar instituição nem curso',
   expect(await consultar('select 1 from instituicao where nome_canonico = $1', [instituicao]))
     .toEqual([])
   expect(await consultar('select 1 from curso where nome = $1', [curso])).toEqual([])
+})
+
+// Revisao do Marco 5: link compartilhado sobrevive ao login.
+const CHAVE_RETORNO = 'un-provas-sociais:retorno'
+
+test('deslogado: "Entrar com Google" guarda o hash do link antes de ir ao OAuth', async ({ page }) => {
+  // O Google nao existe na stack local: o /authorize e respondido com um
+  // redirecionamento de volta a base da app (como o OAuth faria, sem
+  // sessao), e o sessionStorage da aba e lido la.
+  await page.route('**/auth/v1/authorize**', (rota) =>
+    rota.fulfill({ status: 302, headers: { location: URL_APP } }))
+  await page.goto('#/depoimentos?ano=2025')
+  await page.getByRole('button', { name: 'Entrar com Google' }).click()
+  await expect(page).toHaveURL(URL_APP)
+  await expect(page.getByRole('button', { name: 'Entrar com Google' })).toBeVisible()
+  await expect.poll(() => page.evaluate((k) => sessionStorage.getItem(k), CHAVE_RETORNO))
+    .toBe('#/depoimentos?ano=2025')
+})
+
+test('depois do login, o hash guardado abre uma vez e e apagado', async ({ page, entrarComo }) => {
+  await entrarComo('membro')
+  // Simula a volta do OAuth: hash guardado, app aberta na base sem hash.
+  await page.addInitScript((k) => {
+    if (!sessionStorage.getItem('e2e-retorno-semeado')) {
+      sessionStorage.setItem('e2e-retorno-semeado', '1')
+      sessionStorage.setItem(k, '#/cadastros')
+    }
+  }, CHAVE_RETORNO)
+  await page.goto('./')
+  await expect(page).toHaveURL(/#\/cadastros$/)
+  await expect(page.getByRole('heading', { name: 'Instituições' })).toBeVisible()
+  expect(await page.evaluate((k) => sessionStorage.getItem(k), CHAVE_RETORNO)).toBeNull()
 })

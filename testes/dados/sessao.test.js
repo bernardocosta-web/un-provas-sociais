@@ -97,3 +97,44 @@ describe('aoMudarSessao', () => {
     expect(resultado).toBe(assinaturaFalsa)
   })
 })
+
+describe('entrarComGoogle guarda o hash para depois do login (revisao do Marco 5)', () => {
+  it('grava o hash atual no sessionStorage ANTES de ir ao Google', async () => {
+    const gravado = {}
+    const ordem = []
+    vi.stubGlobal('window', {
+      location: { origin: 'http://localhost:5173', hash: '#/depoimentos?ano=2025' },
+      sessionStorage: {
+        setItem: (k, v) => { gravado[k] = v; ordem.push('guardar') },
+        removeItem: () => {},
+      },
+    })
+    supabaseFalso.auth.signInWithOAuth.mockImplementation(async () => { ordem.push('oauth'); return {} })
+    await entrarComGoogle()
+    expect(Object.values(gravado)).toEqual(['#/depoimentos?ano=2025'])
+    expect(ordem).toEqual(['guardar', 'oauth'])
+  })
+
+  it('retomarRetornoDoLogin devolve o hash guardado uma vez', async () => {
+    const { retomarRetornoDoLogin } = await import('../../src/dados/sessao.js')
+    const dados = { 'un-provas-sociais:retorno': '#/ficha/7' }
+    vi.stubGlobal('window', {
+      location: { origin: 'http://localhost:5173' },
+      sessionStorage: {
+        getItem: (k) => dados[k] ?? null,
+        removeItem: (k) => { delete dados[k] },
+      },
+    })
+    expect(retomarRetornoDoLogin()).toBe('#/ficha/7')
+    expect(retomarRetornoDoLogin()).toBeNull()
+  })
+
+  it('sem sessionStorage (acesso lanca) o login segue', async () => {
+    vi.stubGlobal('window', {
+      location: { origin: 'http://localhost:5173', hash: '#/cadastros' },
+      get sessionStorage() { throw new Error('bloqueado') },
+    })
+    supabaseFalso.auth.signInWithOAuth.mockResolvedValue({})
+    await expect(entrarComGoogle()).resolves.toBeUndefined()
+  })
+})

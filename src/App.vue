@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { usuarioAtual, aoMudarSessao, sair } from './dados/sessao.js'
+import { usuarioAtual, aoMudarSessao, sair, retomarRetornoDoLogin } from './dados/sessao.js'
 import { interpretarRota } from './lib/rotas.js'
 import Login from './telas/Login.vue'
 import Cadastros from './telas/Cadastros.vue'
@@ -24,6 +24,13 @@ function novoDepoimento() {
 
 onMounted(async () => {
   usuario.value = await usuarioAtual()
+  // Voltando do login: o link que a pessoa abriu deslogada (hash guardado
+  // antes do OAuth) vale de novo, uma vez so.
+  const retorno = usuario.value ? retomarRetornoDoLogin() : null
+  if (retorno && retorno !== location.hash) {
+    location.hash = retorno
+    rota.value = interpretarRota(retorno)
+  }
   carregando.value = false
   // Sem onUnmounted cancelando a assinatura nem o listener: App.vue é a raiz
   // e nunca desmonta.
