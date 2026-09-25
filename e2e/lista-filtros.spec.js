@@ -167,6 +167,23 @@ test('"Limpar filtros" zera o painel e mantem a aba', async ({ page }) => {
   await expect(contagem(page)).not.toHaveText('Buscando…')
 })
 
+// M5-A item 1 (pedido do dono): coluna pequena, indicador sim/nao de
+// print_path preenchido, presente em toda aba.
+test('coluna Print: "Sim" com print_path preenchido, "—" sem', async ({ page }) => {
+  const recorte = nome('Print coluna')
+  await criarDepoimento({ texto: `${recorte} com print`, print: `${recorte}.webp` })
+  await criarDepoimento({ texto: `${recorte} sem print` })
+  await abrirLista(page)
+  await filtrarTexto(page, recorte)
+  await expect(contagem(page)).toHaveText('2 depoimentos')
+
+  await expect(cabecalhos(page).filter({ hasText: 'Print' })).toHaveCount(1)
+  const comPrint = linhas(page).filter({ hasText: `${recorte} com print` })
+  const semPrint = linhas(page).filter({ hasText: `${recorte} sem print` })
+  await expect(comPrint.locator('td[data-coluna="print"]')).toHaveText('Sim')
+  await expect(semPrint.locator('td[data-coluna="print"]')).toHaveText('—')
+})
+
 test('link_original que nao e http(s) aparece como texto, nunca como link', async ({ page }) => {
   const recorte = nome('Link perigoso')
   await criarDepoimento({ texto: `${recorte} js`, fonte: 'GOOGLE_REVIEW', link: 'javascript:alert(1)' })

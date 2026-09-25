@@ -15,22 +15,23 @@ export const ABAS = [
 const TITULOS = {
   fonte: 'Fonte', autor: 'Autor', resumo: 'Resumo', texto: 'Texto', link: 'Link original',
   contato: '@ do Instagram', autorizacao: 'Autorização', tipos: 'Tipos',
-  logos: 'Aprovações', status: 'Status', data: 'Data',
+  logos: 'Aprovações', status: 'Status', data: 'Data', print: 'Print',
 }
 
 // [chaves, destaques, titulos trocados]. Tabela da spec §6.1: a
 // autorizacao existe (e em destaque) so na aba Forms — nas outras e sempre
-// NAO_INFORMADO e viraria ruido. Tipos, logos e status ficam em toda aba.
+// NAO_INFORMADO e viraria ruido. Tipos, logos, status e print ficam em toda
+// aba (pedido do dono, M5-A item 1): coluna pequena no fim de cada tabela.
 const DEFINICAO = {
-  TODOS: [['fonte', 'autor', 'resumo', 'tipos', 'logos', 'status', 'data'], []],
+  TODOS: [['fonte', 'autor', 'resumo', 'tipos', 'logos', 'status', 'data', 'print'], []],
   GOOGLE_REVIEW: [
-    ['autor', 'texto', 'link', 'data', 'tipos', 'logos', 'status'],
+    ['autor', 'texto', 'link', 'data', 'tipos', 'logos', 'status', 'print'],
     ['autor', 'texto', 'link', 'data']],
   GOOGLE_FORMS: [
-    ['autor', 'autorizacao', 'contato', 'texto', 'tipos', 'logos', 'status', 'data'],
+    ['autor', 'autorizacao', 'contato', 'texto', 'tipos', 'logos', 'status', 'data', 'print'],
     ['autor', 'autorizacao', 'contato', 'texto'], { autor: 'Nome', texto: 'Depoimento' }],
   MANUAL: [
-    ['resumo', 'autor', 'tipos', 'logos', 'status', 'data'], ['resumo', 'autor']],
+    ['resumo', 'autor', 'tipos', 'logos', 'status', 'data', 'print'], ['resumo', 'autor']],
 }
 
 export function colunasDaAba(aba) {
@@ -83,7 +84,8 @@ function instituicoesAprovadas(participacoes) {
   return [...vistas.values()]
 }
 
-// Linha vinda de buscarDepoimentos com COLUNAS_LISTA (src/dados/depoimentos.js).
+// Linha vinda de buscarDepoimentosComTotal com COLUNAS_LISTA
+// (src/dados/depoimentos.js).
 export function linhaDaLista(d) {
   return {
     id: d.id,
@@ -99,5 +101,8 @@ export function linhaDaLista(d) {
     status: rotuloDe(STATUS, d.status_uso),
     tipos: (d.depoimento_tipo ?? []).map((t) => rotuloDe(TIPOS, t.tipo)),
     instituicoes: instituicoesAprovadas(d.participacao),
+    // Coluna "Print" (pedido do dono, M5-A item 1): so indica se ha
+    // print_path preenchido, texto curto e acessivel (sem icone).
+    print: d.print_path ? 'Sim' : '—',
   }
 }

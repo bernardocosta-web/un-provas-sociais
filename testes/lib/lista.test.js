@@ -20,8 +20,9 @@ describe('colunasDaAba', () => {
   const chaves = (aba) => colunasDaAba(aba).map((c) => c.chave)
   const destaques = (aba) => colunasDaAba(aba).filter((c) => c.destaque).map((c) => c.chave)
 
-  it('Todos: fonte, autor, resumo, tipos, logos, status e data', () => {
-    expect(chaves('TODOS')).toEqual(['fonte', 'autor', 'resumo', 'tipos', 'logos', 'status', 'data'])
+  it('Todos: fonte, autor, resumo, tipos, logos, status, data e print', () => {
+    expect(chaves('TODOS'))
+      .toEqual(['fonte', 'autor', 'resumo', 'tipos', 'logos', 'status', 'data', 'print'])
   })
 
   it('autorizacao aparece so na aba Forms, e em destaque', () => {
@@ -41,15 +42,24 @@ describe('colunasDaAba', () => {
     expect(colunasDaAba('GOOGLE_FORMS').find((c) => c.chave === 'autor').titulo).toBe('Nome')
   })
 
-  it('Todos nao destaca nada; toda aba mostra tipos, logos e status', () => {
+  it('Todos nao destaca nada; toda aba mostra tipos, logos, status e print', () => {
     expect(destaques('TODOS')).toEqual([])
     for (const { valor } of ABAS) {
-      expect(chaves(valor)).toEqual(expect.arrayContaining(['tipos', 'logos', 'status']))
+      expect(chaves(valor)).toEqual(expect.arrayContaining(['tipos', 'logos', 'status', 'print']))
     }
   })
 
   it('aba desconhecida cai nas colunas de Todos', () => {
     expect(colunasDaAba('LIXO')).toEqual(colunasDaAba('TODOS'))
+  })
+
+  // M5-A item 1 (pedido do dono): coluna pequena, sem destaque, no fim de
+  // cada aba — indicador sim/nao de print_path preenchido.
+  it('print e a ultima coluna de toda aba, nunca em destaque, titulo "Print"', () => {
+    for (const { valor } of ABAS) {
+      const colunas = colunasDaAba(valor)
+      expect(colunas.at(-1)).toMatchObject({ chave: 'print', titulo: 'Print', destaque: false })
+    }
   })
 })
 
@@ -113,7 +123,15 @@ describe('linhaDaLista', () => {
     })
     expect(linha).toMatchObject({
       autor: '', contato: '', link: '', data: '', tipos: [], instituicoes: [], status: 'Feito',
+      print: '—',
     })
+  })
+
+  // M5-A item 1: indicador "Sim"/"—" a partir de print_path preenchido.
+  it('print: "Sim" com print_path preenchido, "—" sem', () => {
+    expect(linhaDaLista({ ...DEPOIMENTO, print_path: 'abc.webp' }).print).toBe('Sim')
+    expect(linhaDaLista({ ...DEPOIMENTO, print_path: null }).print).toBe('—')
+    expect(linhaDaLista(DEPOIMENTO).print).toBe('—')
   })
 })
 
