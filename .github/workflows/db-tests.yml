@@ -1,0 +1,33 @@
+name: Testes do banco
+
+on: [push, pull_request]
+
+# Subprojeto #2 (ADR 0001). Banco local descartavel: sobe a stack do
+# Supabase no runner, reaplica todas as migracoes do zero e roda os testes
+# de RLS/banco e o pytest do importador. Sem Secrets e sem tocar o projeto
+# hospedado. Um job so, sem matriz: cada execucao tem a propria stack.
+jobs:
+  banco:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      # Instala a Supabase CLI fixada (devDependency), a mesma do local.
+      - run: npm ci
+      - run: npx supabase start -x studio,imgproxy,edge-runtime
+      # Reaplica 0001..N do zero num banco vazio: pega migracao que so
+      # funcionava sobre um estado anterior (ex.: enum novo usado na mesma
+      # transacao em que foi criado).
+      - run: npx supabase db reset --local
+      - run: npx vitest run testes/rls
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: importadores/requirements.txt
+      - run: pip install -r importadores/requirements.txt
+      - run: python -m pytest importadores -q

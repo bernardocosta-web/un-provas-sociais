@@ -235,4 +235,51 @@ describe('workflows do GitHub Actions (Task 25)', () => {
       expect(lint(texto, 'backup.yml')).toEqual([])
     })
   })
+
+  // Subprojeto #2 (ADR 0001): CI do banco descartavel. Sobe a stack local,
+  // reaplica todas as migracoes do zero e roda os testes de RLS/banco e o
+  // pytest do importador. Nunca ve Secret nem o projeto hospedado.
+  describe('db-tests.yml', () => {
+    let texto
+    let doc
+    beforeAll(() => {
+      ;({ texto, doc } = lerWorkflow('db-tests.yml'))
+    })
+
+    it('dispara em push e pull_request', () => {
+      // `on:` aceita lista curta ([push, pull_request]) ou mapa.
+      const eventos = Array.isArray(doc.on) ? doc.on : Object.keys(doc.on)
+      expect(eventos).toEqual(expect.arrayContaining(['push', 'pull_request']))
+    })
+
+    it('um job, sem matriz, com timeout', () => {
+      expect(Object.keys(doc.jobs)).toHaveLength(1)
+      const job = Object.values(doc.jobs)[0]
+      expect(job.strategy?.matrix).toBeUndefined()
+      expect(job['timeout-minutes']).toBeGreaterThan(0)
+    })
+
+    it('nao referencia Secret nem o hospedado', () => {
+      expect(texto).not.toMatch(/secrets\./)
+      expect(texto).not.toMatch(/SERVICE_ROLE/)
+      expect(texto).not.toMatch(/db push|--linked|supabase link/)
+    })
+
+    it('sobe a stack, reaplica as migracoes do zero e so depois roda RLS e pytest', () => {
+      const runs = comandosRun(Object.values(doc.jobs)[0])
+      const idx = (re) => runs.findIndex((r) => re.test(r))
+      const start = idx(/supabase start/)
+      const reset = idx(/supabase db reset --local/)
+      const rls = idx(/vitest run testes\/rls/)
+      const pytest = idx(/pytest importadores/)
+      expect(start, 'nenhum passo roda `supabase start`').toBeGreaterThanOrEqual(0)
+      expect(reset, 'nenhum passo reaplica as migracoes (`supabase db reset --local`)').toBeGreaterThan(start)
+      expect(rls, 'nenhum passo roda os testes de RLS').toBeGreaterThan(reset)
+      expect(pytest, 'nenhum passo roda o pytest do importador').toBeGreaterThan(reset)
+    })
+
+    it('passa no actionlint', () => {
+      expect(lint(texto, 'db-tests.yml')).toEqual([])
+    })
+  })
 })
