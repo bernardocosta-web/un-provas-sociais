@@ -50,8 +50,12 @@ const limpo = (texto) => (texto ?? '').trim()
 // executaria na origem da app, com a sessao do usuario.
 const PADRAO_LINK_SEGURO = /^https?:\/\//i
 
+// ADR 0001: o banco guarda o texto original (o Google exporta **negrito**);
+// o markdown sai so na exibicao.
+export const semMarkdown = (texto) => (texto ?? '').replaceAll('**', '')
+
 export function trecho(texto, limite = 160) {
-  const t = limpo(texto)
+  const t = limpo(semMarkdown(texto))
   return t.length <= limite ? t : `${t.slice(0, limite - 1)}…`
 }
 

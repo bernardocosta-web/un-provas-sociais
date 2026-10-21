@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { conectar } from './ajuda.js'
 
-const ESTADOS = ['DISPONIVEL', 'EM_PRODUCAO', 'FEITO', 'POSTADO', 'DESCARTADO']
+const ESTADOS = ['DISPONIVEL', 'EM_PRODUCAO', 'FEITO', 'POSTADO', 'DESCARTADO', 'EM_REVISAO']
 
 const PERMITIDAS = new Set([
   'DISPONIVEL>EM_PRODUCAO',
@@ -15,6 +15,9 @@ const PERMITIDAS = new Set([
   'FEITO>DESCARTADO',
   'POSTADO>DESCARTADO',
   'DESCARTADO>DISPONIVEL',
+  // ADR 0001: importado em revisao sai liberado ou descartado; nada entra nele.
+  'EM_REVISAO>DISPONIVEL',
+  'EM_REVISAO>DESCARTADO',
 ])
 
 // Campos que cada estado exige para existir, conforme as regras 4 e 6.

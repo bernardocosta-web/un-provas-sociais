@@ -142,6 +142,17 @@ describe('trecho / dataBr / textoContagem', () => {
     expect(trecho(null, 5)).toBe('')
   })
 
+  // ADR 0001: o banco guarda o texto original do Google (com **negrito**);
+  // o markdown sai so na exibicao.
+  it('trecho exibe sem o negrito markdown (**), sem mexer no resto', () => {
+    expect(trecho('Passei na **USP** e na **Unicamp**!', 100)).toBe('Passei na USP e na Unicamp!')
+    expect(trecho('2 * 3 = 6', 100)).toBe('2 * 3 = 6')
+  })
+
+  it('trecho corta depois de tirar o markdown', () => {
+    expect(trecho('**abcdefghij**', 5)).toBe('abcd…')
+  })
+
   it('dataBr: aaaa-mm-dd -> dd/mm/aaaa; lixo vira vazio', () => {
     expect(dataBr('2025-12-31')).toBe('31/12/2025')
     expect(dataBr(null)).toBe('')

@@ -31,7 +31,7 @@ export const AUTORIZACOES = opcoes([
 ])
 export const STATUS = opcoes([
   ['DISPONIVEL', 'Disponível'], ['EM_PRODUCAO', 'Em produção'], ['FEITO', 'Feito'],
-  ['POSTADO', 'Postado'], ['DESCARTADO', 'Descartado'],
+  ['POSTADO', 'Postado'], ['DESCARTADO', 'Descartado'], ['EM_REVISAO', 'Em revisão'],
 ])
 export const MOTIVOS = opcoes([
   ['QUALIDADE_BAIXA', 'Qualidade baixa'], ['SEM_AUTORIZACAO', 'Sem autorização'],

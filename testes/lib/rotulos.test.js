@@ -1,16 +1,23 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import * as rotulos from '../../src/lib/rotulos.js'
 
 // Os selects e caixas da ficha usam estas listas; um valor que nao exista no
-// enum do banco so estouraria (22P02) na hora de salvar. Compara com a
-// migracao, na mesma ordem.
-const sql = readFileSync(
-  fileURLToPath(new URL('../../supabase/migrations/0002_enums.sql', import.meta.url)), 'utf8')
+// enum do banco so estouraria (22P02) na hora de salvar. Compara com as
+// migracoes, na mesma ordem: o "create type" da 0002 e, em seguida, cada
+// "alter type ... add value" das migracoes posteriores (0018 em diante).
+const PASTA = fileURLToPath(new URL('../../supabase/migrations/', import.meta.url))
+const sql = readFileSync(`${PASTA}0002_enums.sql`, 'utf8')
 const enums = Object.fromEntries(
   [...sql.matchAll(/create type (\w+) as enum \(([^)]+)\)/g)]
     .map(([, nome, valores]) => [nome, [...valores.matchAll(/'(\w+)'/g)].map((m) => m[1])]))
+for (const arquivo of readdirSync(PASTA).filter((f) => f.endsWith('.sql')).sort()) {
+  const conteudo = readFileSync(`${PASTA}${arquivo}`, 'utf8')
+  for (const [, nome, valor] of conteudo.matchAll(/alter type (?:public\.)?(\w+) add value (?:if not exists )?'(\w+)'/g)) {
+    enums[nome].push(valor)
+  }
+}
 
 const PARES = {
   tipo_depoimento: 'TIPOS',

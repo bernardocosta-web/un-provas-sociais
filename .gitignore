@@ -24,3 +24,9 @@ logos/
 # Saídas do Playwright (e2e)
 test-results/
 playwright-report/
+
+# Python (importadores)
+__pycache__/
+.pytest_cache/
+*.csv
+/dados/
